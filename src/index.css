@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Noto Serif KR", serif;
+  --font-mono: "DM Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  /* Brand Colors */
+  --color-brand-primary: #1a1a2e; /* ink */
+  --color-brand-secondary: #c8953a; /* gold */
+  --color-brand-accent: #e8572a; /* orange accent */
+  --color-brand-accent2: #2a7ae8; /* blue accent */
+  
+  /* Backgrounds */
+  --color-background-main: #faf8f3; /* paper */
+  --color-background-dark: #1a1a2e; /* ink */
+  --color-surface-card: #FFFFFF;
+  --color-surface-subtle: #f2ede3;
+  
+  /* Text */
+  --color-text-primary: #1a1a2e;
+  --color-text-muted: #7a7a8a;
+  --color-text-on-light: #FFFFFF;
+  --color-text-inverted: #FFFFFF;
+  
+  /* Borders */
+  --color-border-color: #d8d4c8;
+
+  --radius-DEFAULT: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+}
+
+body {
+  @apply bg-background-main text-text-primary font-sans antialiased;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-border-color rounded-full;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  @apply bg-text-muted;
+}
+
+/* Recharts Custom Styles */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: #E5E7EB;
+}
+
+.recharts-default-tooltip {
+  @apply !bg-white !border-border-color !rounded-lg !shadow-lg !p-2 !text-xs font-sans;
+}
+
+.recharts-tooltip-label {
+  @apply !font-bold !text-text-primary !mb-1;
+}
+
+.recharts-legend-item-text {
+  @apply !text-xs !text-text-muted;
+}
