@@ -142,3 +142,20 @@ export interface LocationAnalysisReport {
         promotion: { title: string; description: string; }[];
     };
 }
+
+export interface StartupCostItem {
+  id: string;
+  category: string;
+  name: string;
+  amount: number;
+}
+
+export interface ProfitSimulation {
+  monthlyRevenue: number;
+  costOfGoodsSold: number; // 재료비
+  laborCost: number; // 인건비
+  rent: number; // 임차료
+  utilities: number; // 수도광열비
+  marketing: number; // 마케팅비
+  otherExpenses: number; // 기타비용
+}

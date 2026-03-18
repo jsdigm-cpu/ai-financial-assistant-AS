@@ -4,33 +4,48 @@
     <meta charset="UTF-8" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI 통장정리</title>
-    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>사장님 든든 - 소상공인 올인원 경영 AI 플랫폼</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700;900&family=Noto+Sans+KR:wght@300;400;500;700&family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <style>
-      html { font-size: 16px; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; }
+      html { font-size: 16px; }
       body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+      .font-serif-kr { font-family: 'Noto Serif KR', serif; }
+      .font-mono-dm { font-family: 'DM Mono', monospace; }
     </style>
     <script>
       tailwind.config = {
+        darkMode: "class",
         theme: {
           extend: {
             fontFamily: {
-              sans: ['Pretendard', 'sans-serif'],
+              sans: ['Inter', 'Noto Sans KR', 'sans-serif'],
+              serif: ['Noto Serif KR', 'serif'],
+              mono: ['DM Mono', 'monospace'],
             },
             colors: {
-              'background-main': '#f8fafc',
+              'background-main': '#faf8f3', // paper
+              'background-dark': '#1a1a2e', // ink
               'surface-card': '#ffffff',
-              'surface-subtle': '#f1f5f9',
-              'brand-primary': '#0f172a',
-              'brand-secondary': '#334155',
-              'brand-accent': '#3b82f6',
-              'text-primary': '#0f172a',
-              'text-muted': '#64748b',
+              'surface-subtle': '#f2ede3',
+              'brand-primary': '#1a1a2e', // ink
+              'brand-secondary': '#c8953a', // gold
+              'brand-accent': '#e8572a', // orange accent
+              'brand-accent2': '#2a7ae8', // blue accent
+              'text-primary': '#1a1a2e',
+              'text-muted': '#7a7a8a',
               'text-on-light': '#ffffff',
-              'text-inverted': '#f8fafc',
-              'text-inverted-muted': '#cbd5e1',
-              'border-color': '#e2e8f0',
+              'text-inverted': '#ffffff',
+              'text-inverted-muted': 'rgba(255,255,255,0.65)',
+              'border-color': '#d8d4c8',
+            },
+            borderRadius: {
+              "DEFAULT": "0.75rem",
+              "lg": "1rem",
+              "xl": "1.5rem",
+              "2xl": "2rem",
+              "full": "9999px"
             },
           }
         }
@@ -39,7 +54,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   </head>
   <body class="bg-background-main text-text-primary font-sans selection:bg-brand-accent selection:text-white">
+    <div id="debug-check" style="display:none">HTML Rendered</div>
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+    <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>

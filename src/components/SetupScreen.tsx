@@ -161,39 +161,39 @@ const SetupScreen: React.FC<Props> = ({ onDataProcessed, onGoBack, savedSession,
       <div className="w-full max-w-4xl bg-white rounded-3xl shadow-xl border border-border-color overflow-hidden relative">
         
         {/* Header Section */}
-        <div className="relative px-8 py-10 text-white overflow-hidden rounded-t-3xl">
-          <img 
-            src="https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?q=80&w=2000&auto=format&fit=crop" 
-            alt="Setup Background" 
-            className="absolute inset-0 w-full h-full object-cover"
-            referrerPolicy="no-referrer"
-          />
-          <div className="absolute inset-0 bg-brand-primary/85 backdrop-blur-sm"></div>
+        <div className="relative px-8 py-12 text-white overflow-hidden rounded-t-3xl">
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-primary via-indigo-800 to-indigo-950"></div>
           
-          {/* Decorative background pattern */}
-          <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl"></div>
-          <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-32 h-32 bg-brand-accent opacity-30 rounded-full blur-xl"></div>
+          {/* Decorative background elements */}
+          <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-brand-accent/20 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl"></div>
           
           {onGoBack && (
             <button
               onClick={onGoBack}
               title="이전 분석으로 돌아가기"
-              className="absolute top-6 left-6 text-white/70 hover:text-white transition-colors z-10 p-2 rounded-full hover:bg-white/10"
+              className="absolute top-6 left-6 text-white/70 hover:text-white transition-all z-10 p-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 backdrop-blur-md"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z" />
-              </svg>
+              <span className="material-symbols-outlined text-2xl">arrow_back</span>
             </button>
           )}
           
-          <div className="relative z-10 text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 backdrop-blur-sm rounded-2xl mb-4 border border-white/20">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
+          <div className="relative z-10 flex flex-col items-center text-center">
+            <div className="flex items-center space-x-3 mb-6">
+                <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div className="text-left">
+                    <span className="block text-xs font-bold text-brand-accent tracking-widest uppercase">사장님 든든</span>
+                    <span className="block text-2xl font-black tracking-tight">서비스 시작하기</span>
+                </div>
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-2">분석 설정</h1>
-            <p className="text-lg text-white/80 font-medium">정확한 분석을 위해 기본 정보를 입력해주세요.</p>
+            <p className="text-lg text-white/80 font-medium max-w-lg">
+                사장님의 성공적인 비즈니스를 위해<br/>
+                필요한 기본 정보를 설정해 주세요.
+            </p>
           </div>
         </div>
 
@@ -522,11 +522,15 @@ const SetupScreen: React.FC<Props> = ({ onDataProcessed, onGoBack, savedSession,
             </div>
           )}
 
-          <div className="pt-8 border-t border-border-color flex justify-center md:justify-end">
+          <div className="pt-8 border-t border-border-color flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="text-sm text-text-muted flex items-center gap-2">
+                <span className="material-symbols-outlined text-emerald-500">verified_user</span>
+                입력하신 정보는 브라우저에만 안전하게 저장됩니다.
+            </div>
             <button
               onClick={processData}
               disabled={isLoading}
-              className="w-full md:w-auto inline-flex items-center justify-center px-10 py-5 bg-brand-primary hover:bg-brand-secondary text-white font-bold text-xl rounded-2xl shadow-xl transition-all transform hover:-translate-y-1 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed disabled:transform-none"
+              className="w-full sm:w-auto inline-flex items-center justify-center px-10 py-5 bg-gradient-to-r from-brand-primary to-indigo-700 hover:from-indigo-700 hover:to-brand-primary text-white font-bold text-xl rounded-2xl shadow-xl transition-all transform hover:-translate-y-1 hover:shadow-2xl disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed disabled:transform-none disabled:from-slate-300 disabled:to-slate-300"
             >
               {isLoading ? (
                 <>
@@ -534,13 +538,11 @@ const SetupScreen: React.FC<Props> = ({ onDataProcessed, onGoBack, savedSession,
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  AI 분석 진행 중...
+                  분석 준비 중...
                 </>
               ) : (
                 <>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
+                  <span className="material-symbols-outlined mr-2">rocket_launch</span>
                   AI 분석 시작하기
                 </>
               )}

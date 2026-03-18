@@ -9,6 +9,9 @@ import AIReportView from './views/AIReportView';
 import CategoryManagementView from './views/CategoryManagementView';
 import DeepDiveView from './views/DeepDiveView';
 import DataSourcesView from './views/DataSourcesView';
+import PlanView from './views/PlanView';
+import ValueView from './views/ValueView';
+import ExitView from './views/ExitView';
 import LoadingModal from './LoadingModal';
 import CategoryReviewModal from './CategoryReviewModal';
 
@@ -32,11 +35,13 @@ interface Props {
   businessInfo: BusinessInfo;
   uploadedFiles: UploadedFileInfo[];
   onReset: () => void;
+  activeTab: 'plan' | 'operate' | 'value' | 'exit';
+  setActiveTab: (tab: 'plan' | 'operate' | 'value' | 'exit') => void;
 }
 
 const getUserKey = (info: BusinessInfo) => `financial_dashboard_user_${info.name}_${info.owner}`;
 
-const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles, onReset }) => {
+const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles, onReset, activeTab, setActiveTab }) => {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [transactions, setTransactions] = useState<Transaction[]>(initialData.transactions);
   const [errors, setErrors] = useState<string[]>(initialData.errors);
@@ -463,6 +468,13 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
   };
 
 
+  const pillarItems = [
+    { id: 'plan', label: '스마트 창업 설계', icon: 'edit_note' },
+    { id: 'operate', label: 'AI 실시간 경영', icon: 'analytics' },
+    { id: 'value', label: '데이터 기반 가치 평가', icon: 'trending_up' },
+    { id: 'exit', label: '전략적 마무리지원', icon: 'exit_to_app' },
+  ];
+
   const navItems = [
     { id: 'dashboard', label: '대시보드' },
     { id: 'transactions', label: '거래 내역' },
@@ -478,6 +490,18 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
       businessInfo,
       categories,
     };
+
+    if (activeTab === 'plan') {
+        return <PlanView />;
+    }
+
+    if (activeTab === 'value') {
+        return <ValueView transactions={transactions} businessInfo={businessInfo} />;
+    }
+
+    if (activeTab === 'exit') {
+        return <ExitView businessInfo={businessInfo} />;
+    }
 
     switch (activePage) {
       case 'dashboard':
@@ -527,71 +551,83 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
         initialCategories={initialAiCategories}
         onConfirm={handleCategoryReviewConfirm}
       />
-      <header className="bg-white shadow-sm border-b border-border-color px-6 py-4 flex flex-col lg:flex-row justify-between items-center z-10 shrink-0 gap-4">
-          <div className="flex items-center justify-between w-full lg:w-auto">
-              <button onClick={onReset} title="홈으로 돌아가기" className="flex items-center space-x-3 group cursor-pointer text-left">
-                   <div className="relative p-2.5 bg-gradient-to-br from-brand-primary to-indigo-700 rounded-xl shadow-md group-hover:shadow-lg group-hover:scale-105 transition-all duration-200">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white"></div>
-                  </div>
-                  <div className="flex flex-col">
-                      <span className="text-xs font-bold text-brand-primary tracking-wider uppercase">AI 통장정리</span>
-                      <span className="text-lg font-bold text-text-primary leading-tight truncate max-w-[150px] sm:max-w-xs">{businessInfo.name}</span>
-                  </div>
-              </button>
-          </div>
+      <header className="bg-white shadow-sm border-b border-border-color px-6 py-4 flex flex-col z-10 shrink-0 gap-4">
+          <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
+              <div className="flex items-center justify-between w-full lg:w-auto">
+                  <button onClick={onReset} title="홈으로 돌아가기" className="flex items-center space-x-3 group cursor-pointer text-left">
+                       <div className="relative p-2.5 bg-gradient-to-br from-brand-primary to-indigo-700 rounded-xl shadow-md group-hover:shadow-lg group-hover:scale-105 transition-all duration-200">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white"></div>
+                      </div>
+                      <div className="flex flex-col">
+                          <span className="text-xs font-bold text-brand-primary tracking-wider uppercase">사장님 든든</span>
+                          <span className="text-lg font-bold text-text-primary leading-tight truncate max-w-[150px] sm:max-w-xs">{businessInfo.name}</span>
+                      </div>
+                  </button>
+              </div>
 
-          <nav className="flex-1 w-full lg:w-auto overflow-x-auto custom-scrollbar pb-2 lg:pb-0">
-              <div className="flex items-center space-x-2 bg-surface-subtle p-1.5 rounded-2xl border border-border-color min-w-max mx-auto lg:mx-0">
-                   {navItems.map(item => (
+              <div className="flex items-center space-x-1 bg-surface-subtle p-1 rounded-2xl border border-border-color overflow-x-auto max-w-full">
+                  {pillarItems.map(pillar => (
                       <button
-                          key={item.id}
-                          onClick={() => setActivePage(item.id as Page)}
-                          className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 whitespace-nowrap ${
-                              activePage === item.id 
+                          key={pillar.id}
+                          onClick={() => setActiveTab(pillar.id as any)}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-200 whitespace-nowrap ${
+                              activeTab === pillar.id 
                               ? 'bg-white text-brand-primary shadow-sm border border-border-color/50' 
                               : 'text-text-muted hover:bg-white/50 hover:text-text-primary'
                           }`}
                       >
-                          {item.label}
+                          <span className="material-symbols-outlined text-lg">{pillar.icon}</span>
+                          {pillar.label}
                       </button>
-                   ))}
+                  ))}
               </div>
-          </nav>
 
-          <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
-               <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple className="hidden" accept=".xlsx, .xls, .csv" />
-              <button
-                  onClick={handleExportData}
-                  title="분석 데이터를 JSON 파일로 백업합니다"
-                  className="hidden sm:flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-surface-subtle text-text-primary font-bold rounded-xl border border-border-color transition-colors duration-200 text-sm shadow-sm"
-              >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                  </svg>
-                  백업
-              </button>
-              <button
-                  onClick={handleAddFilesClick}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-brand-accent hover:bg-cyan-600 text-white font-bold rounded-xl shadow-sm transition-colors duration-200 text-sm"
-              >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                  </svg>
-                  파일 추가
-              </button>
-              <button
-                  onClick={onReset}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl border border-red-200 transition-colors duration-200 text-sm"
-              >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  초기화
-              </button>
+              <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
+                   <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple className="hidden" accept=".xlsx, .xls, .csv" />
+                  <button
+                      onClick={handleExportData}
+                      title="분석 데이터를 JSON 파일로 백업합니다"
+                      className="hidden sm:flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-surface-subtle text-text-primary font-bold rounded-xl border border-border-color transition-colors duration-200 text-sm shadow-sm"
+                  >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                      </svg>
+                      백업
+                  </button>
+                  <button
+                      onClick={onReset}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl border border-red-200 transition-colors duration-200 text-sm"
+                  >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      초기화
+                  </button>
+              </div>
           </div>
+
+          {activeTab === 'operate' && (
+              <nav className="w-full overflow-x-auto custom-scrollbar pb-1">
+                  <div className="flex items-center space-x-2 min-w-max">
+                       {navItems.map(item => (
+                          <button
+                              key={item.id}
+                              onClick={() => setActivePage(item.id as Page)}
+                              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 whitespace-nowrap ${
+                                  activePage === item.id 
+                                  ? 'text-brand-primary bg-brand-primary/5' 
+                                  : 'text-text-muted hover:text-text-primary'
+                              }`}
+                          >
+                              {item.label}
+                          </button>
+                       ))}
+                  </div>
+              </nav>
+          )}
       </header>
 
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-background-main">

@@ -6,12 +6,11 @@ export default defineConfig({
   server: {
     port: 3000,
     host: '0.0.0.0',
-    open: true, // 브라우저 자동 열기
   },
   plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, '.'),
+      '@': path.resolve(__dirname, './src'),
     }
   }
 });

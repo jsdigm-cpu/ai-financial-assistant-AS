@@ -6,6 +6,7 @@ import MainLayout from './components/MainLayout';
 import { BusinessInfo } from './types';
 
 type AppPhase = 'intro' | 'setup' | 'main';
+type MainTab = 'plan' | 'operate' | 'value' | 'exit';
 
 // ============================================================
 // 세션 저장/복원 키 및 유틸리티
@@ -42,6 +43,7 @@ function restoreTransactionDates(transactions: any[]): any[] {
 
 const App: React.FC = () => {
   const [phase, setPhase] = useState<AppPhase>('intro');
+  const [activeTab, setActiveTab] = useState<MainTab>('operate');
   const [processedData, setProcessedData] = useState<ProcessedData | null>(null);
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFileInfo[] | null>(null);
@@ -166,6 +168,8 @@ const App: React.FC = () => {
               businessInfo={businessInfo}
               uploadedFiles={uploadedFiles}
               onReset={handleReset}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
             />
           );
         }
