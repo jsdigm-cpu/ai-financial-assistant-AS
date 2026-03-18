@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { loadStripe } from '@stripe/stripe-js';
 
 interface Props {
   onStart: () => void;
@@ -7,6 +8,49 @@ interface Props {
 }
 
 const IntroScreen: React.FC<Props> = ({ onStart, hasSavedSession, onRestoreSession }) => {
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.get('success')) {
+      alert('결제가 완료되었습니다! 프리미엄 리포트를 이용하실 수 있습니다.');
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    if (query.get('canceled')) {
+      alert('결제가 취소되었습니다.');
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
+
+  const handlePurchase = async (type: 'premium' | 'certificate', price: number) => {
+    try {
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportType: type, price }),
+      });
+      
+      const session = await response.json();
+      
+      if (session.error) {
+        alert('결제 준비 중 오류가 발생했습니다: ' + session.error);
+        return;
+      }
+
+      const stripePublicKey = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
+      if (!stripePublicKey) {
+        alert('Stripe 공개 키가 설정되지 않았습니다. (.env 파일을 확인해주세요)');
+        return;
+      }
+
+      const stripe = await loadStripe(stripePublicKey);
+      if (stripe) {
+        await (stripe as any).redirectToCheckout({ sessionId: session.id });
+      }
+    } catch (error) {
+      console.error('Purchase error:', error);
+      alert('결제 처리 중 오류가 발생했습니다.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-accent selection:text-white">
       {/* Top Navigation Bar */}
@@ -42,11 +86,11 @@ const IntroScreen: React.FC<Props> = ({ onStart, hasSavedSession, onRestoreSessi
           
           <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
             <span className="inline-block py-1 px-4 rounded-full bg-brand-accent/20 text-brand-accent text-sm font-bold mb-6">Your Best Business Partner</span>
-            <h1 className="text-4xl md:text-5xl lg:text-7xl font-black text-brand-primary dark:text-white leading-[1.1] lg:leading-[1.1] tracking-tight mb-8 font-serif">
+            <h1 className="text-4xl md:text-5xl lg:text-7xl font-black text-brand-primary dark:text-white leading-[1.1] lg:leading-[1.1] tracking-tight mb-8 font-serif break-keep">
               사장님의 성공적인 비즈니스 여정,<br className="hidden sm:block"/>
               <span className="text-brand-accent">가장 든든한 파트너</span>가 되겠습니다
             </h1>
-            <p className="text-text-muted dark:text-slate-400 text-lg md:text-xl font-normal leading-relaxed mb-10 max-w-2xl mx-auto">
+            <p className="text-text-muted dark:text-slate-400 text-lg md:text-xl font-normal leading-relaxed mb-10 max-w-2xl mx-auto break-keep">
               데이터와 AI 기술로 소상공인의 내일을 혁신하는 사장님 든든.<br/>
               창업부터 운영, 권리금 산정까지 숫자로 증명해 드립니다.
             </p>
@@ -76,8 +120,8 @@ const IntroScreen: React.FC<Props> = ({ onStart, hasSavedSession, onRestoreSessi
             <div className="grid md:grid-cols-2 gap-16 items-center">
               <div>
                 <h2 className="text-brand-accent text-lg font-bold mb-2">Our Value</h2>
-                <h3 className="text-3xl md:text-4xl font-bold text-brand-primary dark:text-white mb-6 font-serif">데이터로 증명하고<br/>AI로 성장합니다</h3>
-                <p className="text-text-muted dark:text-slate-400 text-lg leading-relaxed mb-8">
+                <h3 className="text-3xl md:text-4xl font-bold text-brand-primary dark:text-white mb-6 font-serif break-keep">데이터로 증명하고<br/>AI로 성장합니다</h3>
+                <p className="text-text-muted dark:text-slate-400 text-lg leading-relaxed mb-8 break-keep">
                   복잡한 데이터 분석부터 리스크 관리까지, AI 기술을 통해 소상공인 사장님들께 실질적인 힘이 되어드리는 것이 우리의 존재 이유입니다. 우리는 단순한 툴을 넘어, 사장님의 곁을 지키는 전문가 그룹이 되고자 합니다.
                 </p>
                 <ul className="space-y-4">
@@ -112,7 +156,7 @@ const IntroScreen: React.FC<Props> = ({ onStart, hasSavedSession, onRestoreSessi
         <section className="py-24">
           <div className="max-w-7xl mx-auto px-6 text-center mb-16">
             <h2 className="text-brand-accent text-lg font-bold mb-2">Service Features</h2>
-            <h3 className="text-3xl md:text-5xl font-bold text-brand-primary dark:text-white font-serif">사장님을 위한 핵심 기능</h3>
+            <h3 className="text-3xl md:text-5xl font-bold text-brand-primary dark:text-white font-serif break-keep">사장님을 위한 핵심 기능</h3>
           </div>
           <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <FeatureCard 
@@ -142,13 +186,14 @@ const IntroScreen: React.FC<Props> = ({ onStart, hasSavedSession, onRestoreSessi
         <section id="pricing" className="py-24 bg-surface-subtle dark:bg-white/5">
           <div className="max-w-7xl mx-auto px-6 text-center">
             <h2 className="text-brand-accent text-lg font-bold mb-2">Pricing</h2>
-            <h3 className="text-3xl md:text-5xl font-bold text-brand-primary dark:text-white mb-12 font-serif">부담 없는 리포트 중심 요금제</h3>
+            <h3 className="text-3xl md:text-5xl font-bold text-brand-primary dark:text-white mb-12 font-serif break-keep">부담 없는 리포트 중심 요금제</h3>
             
             <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
               <PricingCard 
                 title="무료 기본 서비스"
                 price="0"
                 features={["AI 통장 자동 분류", "기본 재무 대시보드", "창업/폐업 시뮬레이션", "정부 지원금 정보 조회"]}
+                onAction={onStart}
               />
               <PricingCard 
                 title="프리미엄 리포트"
@@ -156,12 +201,16 @@ const IntroScreen: React.FC<Props> = ({ onStart, hasSavedSession, onRestoreSessi
                 unit="건당"
                 highlight
                 features={["상세 재무 진단 보고서", "업종 평균 비교 분석", "AI 경영 코칭 액션 아이템", "PDF 다운로드 제공"]}
+                onAction={() => handlePurchase('premium', 1000)}
+                actionText="결제하기"
               />
               <PricingCard 
                 title="권리금 인증서"
                 price="1,000"
                 unit="건당"
                 features={["데이터 기반 권리금 산정", "상권 프리미엄 분석", "매각용 공식 증빙 자료", "전문가 검토 가이드"]}
+                onAction={() => handlePurchase('certificate', 1000)}
+                actionText="결제하기"
               />
             </div>
           </div>
@@ -171,8 +220,8 @@ const IntroScreen: React.FC<Props> = ({ onStart, hasSavedSession, onRestoreSessi
         <section className="py-24 relative overflow-hidden bg-brand-primary">
           <div className="absolute inset-0 bg-brand-accent/10 z-0"></div>
           <div className="max-w-4xl mx-auto px-6 relative z-10 text-center">
-            <h3 className="text-3xl md:text-4xl font-black text-white mb-6 font-serif">사장님의 내일이 오늘보다 더 든든하도록</h3>
-            <p className="text-slate-300 text-lg mb-10">
+            <h3 className="text-3xl md:text-4xl font-black text-white mb-6 font-serif break-keep">사장님의 내일이 오늘보다 더 든든하도록</h3>
+            <p className="text-slate-300 text-lg mb-10 break-keep">
               지금 '사장님 든든'과 함께 스마트한 비즈니스 관리를 시작해보세요.<br className="hidden md:block"/>
               이미 수천 명의 사장님들이 데이터의 힘을 경험하고 있습니다.
             </p>
@@ -245,16 +294,16 @@ const FeatureCard: React.FC<{ icon: string; title: string; description: string }
     <div className="bg-brand-accent/20 w-14 h-14 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-brand-accent transition-colors">
       <span className="material-symbols-outlined text-brand-accent text-3xl group-hover:text-white">{icon}</span>
     </div>
-    <h4 className="text-xl font-bold text-brand-primary dark:text-white mb-4 font-serif">{title}</h4>
-    <p className="text-text-muted dark:text-slate-400 text-sm leading-relaxed">
+    <h4 className="text-xl font-bold text-brand-primary dark:text-white mb-4 font-serif break-keep">{title}</h4>
+    <p className="text-text-muted dark:text-slate-400 text-sm leading-relaxed break-keep">
       {description}
     </p>
   </div>
 );
 
-const PricingCard: React.FC<{ title: string; price: string; unit?: string; features: string[]; highlight?: boolean }> = ({ title, price, unit = "월", features, highlight }) => (
+const PricingCard: React.FC<{ title: string; price: string; unit?: string; features: string[]; highlight?: boolean; onAction?: () => void; actionText?: string }> = ({ title, price, unit = "월", features, highlight, onAction, actionText = "시작하기" }) => (
   <div className={`p-8 rounded-3xl border transition-all ${highlight ? 'bg-brand-primary text-white border-brand-accent shadow-2xl scale-105 z-10' : 'bg-white dark:bg-white/5 border-black/5 dark:border-white/10 text-brand-primary dark:text-white'}`}>
-    <h4 className={`text-xl font-bold mb-4 font-serif ${highlight ? 'text-brand-accent' : ''}`}>{title}</h4>
+    <h4 className={`text-xl font-bold mb-4 font-serif break-keep ${highlight ? 'text-brand-accent' : ''}`}>{title}</h4>
     <div className="mb-8">
       <span className="text-4xl font-black">₩{price}</span>
       <span className={`text-sm ml-1 ${highlight ? 'text-slate-400' : 'text-text-muted'}`}>/{unit}</span>
@@ -262,13 +311,13 @@ const PricingCard: React.FC<{ title: string; price: string; unit?: string; featu
     <ul className="space-y-4 text-left mb-8">
       {features.map((f, i) => (
         <li key={i} className="flex items-center gap-2 text-sm">
-          <span className="material-symbols-outlined text-brand-accent text-lg">check</span>
-          <span className={highlight ? 'text-slate-300' : 'text-text-muted'}>{f}</span>
+          <span className="material-symbols-outlined text-brand-accent text-lg flex-shrink-0">check</span>
+          <span className={`break-keep ${highlight ? 'text-slate-300' : 'text-text-muted'}`}>{f}</span>
         </li>
       ))}
     </ul>
-    <button className={`w-full py-3 rounded-xl font-bold transition-all ${highlight ? 'bg-brand-accent text-white hover:bg-brand-accent/90' : 'bg-surface-subtle dark:bg-white/10 text-brand-primary dark:text-white hover:bg-black/5 dark:hover:bg-white/5'}`}>
-      시작하기
+    <button onClick={onAction} className={`w-full py-3 rounded-xl font-bold transition-all break-keep ${highlight ? 'bg-brand-accent text-white hover:bg-brand-accent/90' : 'bg-surface-subtle dark:bg-white/10 text-brand-primary dark:text-white hover:bg-black/5 dark:hover:bg-white/5'}`}>
+      {actionText}
     </button>
   </div>
 );
