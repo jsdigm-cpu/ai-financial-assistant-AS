@@ -10,7 +10,7 @@ const pillarItems = [
 type AppPhase = 'intro' | 'plan' | 'operate_setup' | 'operate_main' | 'value' | 'exit';
 
 interface Props {
-  activeTab: 'plan' | 'value' | 'exit';
+  activeTab: 'plan' | 'operate' | 'value' | 'exit';
   onNavigate: (phase: AppPhase) => void;
   children: React.ReactNode;
 }

@@ -68,8 +68,12 @@ const App: React.FC = () => {
   }, []);
 
   const handleNavigate = useCallback((newPhase: AppPhase) => {
-    setPhase(newPhase);
-  }, []);
+    if (newPhase === 'operate_setup' && processedData && businessInfo && uploadedFiles && 'type' in businessInfo) {
+      setPhase('operate_main');
+    } else {
+      setPhase(newPhase);
+    }
+  }, [processedData, businessInfo, uploadedFiles]);
 
   const handleDataProcessed = useCallback((data: ProcessedData, info: BusinessInfo, files: UploadedFileInfo[]) => {
     setProcessedData(data);
@@ -160,13 +164,15 @@ const App: React.FC = () => {
       
       case 'operate_setup':
         return (
-          <SetupScreen
-            onDataProcessed={handleDataProcessed}
-            onGoBack={handleGoBack}
-            savedSession={savedSession}
-            onRestoreSession={handleRestoreSession}
-            onImportSession={handleImportSession}
-          />
+          <ServiceLayout activeTab="operate" onNavigate={handleNavigate}>
+            <SetupScreen
+              onDataProcessed={handleDataProcessed}
+              onGoBack={handleGoBack}
+              savedSession={savedSession}
+              onRestoreSession={handleRestoreSession}
+              onImportSession={handleImportSession}
+            />
+          </ServiceLayout>
         );
 
       case 'operate_main':
