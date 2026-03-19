@@ -499,7 +499,12 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
       case 'data-sources':
         return <DataSourcesView businessInfo={businessInfo} uploadedFiles={uploadedFiles} />;
       case 'deep-dive':
-        return <DeepDiveView {...commonProps} />;
+        return <DeepDiveView
+          {...commonProps}
+          deepDiveReport={reports.deepDive}
+          deepDiveStatus={reportStatus.deepDive}
+          onGenerate={() => handleGenerateFinancialReport('deepDive')}
+        />;
       case 'ai-report':
         return <AIReportView 
                   transactions={transactions}

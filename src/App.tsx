@@ -214,7 +214,10 @@ const App: React.FC = () => {
       case 'exit':
         return (
           <ServiceLayout activeTab="exit" onNavigate={handleNavigate}>
-            <ExitView businessInfo={businessInfo as BusinessInfo} />
+            <ExitView
+              businessInfo={businessInfo as BusinessInfo}
+              transactions={processedData?.transactions || []}
+            />
           </ServiceLayout>
         );
 
