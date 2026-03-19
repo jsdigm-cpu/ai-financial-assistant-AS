@@ -9,9 +9,7 @@ import AIReportView from './views/AIReportView';
 import CategoryManagementView from './views/CategoryManagementView';
 import DeepDiveView from './views/DeepDiveView';
 import DataSourcesView from './views/DataSourcesView';
-import PlanView from './views/PlanView';
-import ValueView from './views/ValueView';
-import ExitView from './views/ExitView';
+
 import LoadingModal from './LoadingModal';
 import CategoryReviewModal from './CategoryReviewModal';
 
@@ -491,17 +489,7 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
       categories,
     };
 
-    if (activeTab === 'plan') {
-        return <PlanView />;
-    }
 
-    if (activeTab === 'value') {
-        return <ValueView transactions={transactions} businessInfo={businessInfo} />;
-    }
-
-    if (activeTab === 'exit') {
-        return <ExitView businessInfo={businessInfo} />;
-    }
 
     switch (activePage) {
       case 'dashboard':

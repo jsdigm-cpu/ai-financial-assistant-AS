@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#e9572b",
+                        "background-light": "#f8f6f6",
+                        "background-dark": "#0a0f1a",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.75rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .chart-donut {
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            background: conic-gradient(
+                #e9572b 0% 45%, 
+                #3b82f6 45% 70%, 
+                #10b981 70% 85%, 
+                #f59e0b 85% 100%
+            );
+            position: relative;
+        }
+        .chart-donut::after {
+            content: "";
+            position: absolute;
+            top: 25%;
+            left: 25%;
+            width: 50%;
+            height: 50%;
+            background: #1e293b; /* Adjusted for dark mode card background */
+            border-radius: 50%;
+        }
+        .dark .chart-donut::after {
+            background: #1e293b;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="relative flex flex-col w-full overflow-x-hidden font-display">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Navigation Bar -->
+<header class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 lg:px-10 py-4 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md sticky top-0 z-50">
+<div class="flex items-center gap-4 flex-shrink-0">
+<div class="text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl">account_balance_wallet</span>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-xl font-black tracking-tight whitespace-nowrap">사장님 든든</h2>
+</div>
+<nav class="hidden md:flex items-center gap-8 mx-6">
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-semibold transition-colors whitespace-nowrap" href="#">홈</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-semibold transition-colors whitespace-nowrap" href="#">서비스 소개</a>
+<a class="text-primary text-sm font-semibold border-b-2 border-primary pb-1 whitespace-nowrap" href="#">AI 재무 분석</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-semibold transition-colors whitespace-nowrap" href="#">거래 내역</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-semibold transition-colors whitespace-nowrap" href="#">설정</a>
+</nav>
+<div class="flex items-center justify-end flex-shrink-0">
+<div class="bg-slate-200 dark:bg-slate-800 rounded-full size-10 flex items-center justify-center overflow-hidden border border-slate-300 dark:border-slate-700">
+<img class="w-full h-full object-cover" data-alt="User profile avatar of a business owner" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWykzZ0Ok8PezVK-smB8T-H-tbVaElpCIEp7XvY2WUBmGrQC9aE92C5Ond-fZlJfO6Qa0eH7XULqYDc2HkAJ5Wl_HXzJbwQ2V-6izBNFo-a8okk4CAjvsSjXhQNmhY3N2hEh92hw7fJo1lpTIcuFmObGxiDDF692yZ7m-MKCfVsx3UAMrlZBlXMT7Am0uVP2Dez6XcTH4RXsTRw1bwx2NiRB5p6hUHlVQSQcuvhbAVKhI_orXNtzfcwaJ7knBarptWOyVJs4VzW58"/>
+</div>
+</div>
+</header>
+<main class="flex flex-1 justify-center py-8">
+<div class="layout-content-container flex flex-col max-w-[1024px] flex-1 px-6">
+<!-- Header Section -->
+<div class="flex flex-wrap justify-between items-end gap-4 mb-8">
+<div>
+<h1 class="text-slate-900 dark:text-white text-4xl font-black tracking-tight">AI 재무 분석</h1>
+<p class="text-slate-500 dark:text-slate-400 mt-2">사장님의 사업장 재무 상태를 AI가 정밀 분석합니다.</p>
+</div>
+<button class="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition-all border border-slate-200 dark:border-slate-700">
+<span class="material-symbols-outlined text-lg">calendar_month</span>
+<span class="text-slate-900 dark:text-white font-bold text-sm">2025년 3월</span>
+<span class="material-symbols-outlined text-lg">expand_more</span>
+</button>
+</div>
+<!-- Upload Section -->
+<div class="mb-10">
+<div class="flex flex-col items-center gap-6 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 px-6 py-12 group hover:border-primary/50 transition-colors">
+<div class="bg-primary/10 p-4 rounded-full">
+<span class="material-symbols-outlined text-4xl text-primary">cloud_upload</span>
+</div>
+<div class="flex flex-col items-center gap-1">
+<p class="text-slate-900 dark:text-white text-xl font-bold">데이터를 업로드하세요</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm text-center">재무 분석을 위해 엑셀(XLSX) 또는 CSV 파일을 업로드해 주세요.<br class="hidden sm:block"/>은행 내역이나 카드 매출 자료를 지원합니다.</p>
+</div>
+<button class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-xl font-bold transition-all transform active:scale-95 shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined">add_circle</span>
+<span>파일 업로드</span>
+</button>
+</div>
+</div>
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+<div class="flex flex-col gap-3 rounded-2xl p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
+<div class="flex justify-between items-start">
+<p class="text-slate-500 dark:text-slate-400 text-sm font-semibold">총 수입</p>
+<span class="material-symbols-outlined text-emerald-500 bg-emerald-500/10 p-1 rounded">trending_up</span>
+</div>
+<div class="flex flex-col">
+<p class="text-slate-900 dark:text-white text-3xl font-black tracking-tight">₩12,500,000</p>
+<p class="text-emerald-500 text-sm font-bold flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-sm">arrow_upward</span> 12.5% vs 전월
+                            </p>
+</div>
+</div>
+<div class="flex flex-col gap-3 rounded-2xl p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
+<div class="flex justify-between items-start">
+<p class="text-slate-500 dark:text-slate-400 text-sm font-semibold">총 지출</p>
+<span class="material-symbols-outlined text-rose-500 bg-rose-500/10 p-1 rounded">trending_down</span>
+</div>
+<div class="flex flex-col">
+<p class="text-slate-900 dark:text-white text-3xl font-black tracking-tight">₩8,200,000</p>
+<p class="text-rose-500 text-sm font-bold flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-sm">arrow_downward</span> 5.2% vs 전월
+                            </p>
+</div>
+</div>
+<div class="flex flex-col gap-3 rounded-2xl p-6 bg-white dark:bg-slate-800 border-2 border-primary/20 shadow-sm">
+<div class="flex justify-between items-start">
+<p class="text-slate-500 dark:text-slate-400 text-sm font-semibold">당기순이익</p>
+<span class="material-symbols-outlined text-primary bg-primary/10 p-1 rounded">payments</span>
+</div>
+<div class="flex flex-col">
+<p class="text-slate-900 dark:text-white text-3xl font-black tracking-tight">₩4,300,000</p>
+<p class="text-primary text-sm font-bold flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-sm">star</span> 상위 15% 달성
+                            </p>
+</div>
+</div>
+</div>
+<!-- Detailed Analysis Section -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+<!-- Expense Structure -->
+<div class="bg-white dark:bg-slate-800 p-8 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+<h3 class="text-slate-900 dark:text-white text-xl font-bold mb-8">지출 구조 분석</h3>
+<div class="flex flex-col sm:flex-row items-center gap-12">
+<div class="chart-donut shadow-xl shadow-primary/5 shrink-0"></div>
+<div class="flex flex-col gap-4 flex-1 w-full">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-primary"></div>
+<span class="text-sm font-medium text-slate-600 dark:text-slate-400">재료비</span>
+</div>
+<span class="text-sm font-bold text-slate-900 dark:text-white">45%</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-blue-500"></div>
+<span class="text-sm font-medium text-slate-600 dark:text-slate-400">임대료/인건비</span>
+</div>
+<span class="text-sm font-bold text-slate-900 dark:text-white">25%</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+<span class="text-sm font-medium text-slate-600 dark:text-slate-400">마케팅비</span>
+</div>
+<span class="text-sm font-bold text-slate-900 dark:text-white">15%</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-amber-500"></div>
+<span class="text-sm font-medium text-slate-600 dark:text-slate-400">기타</span>
+</div>
+<span class="text-sm font-bold text-slate-900 dark:text-white">15%</span>
+</div>
+</div>
+</div>
+</div>
+<!-- AI Coaching -->
+<div class="bg-primary/5 dark:bg-primary/10 p-8 rounded-2xl border border-primary/20 flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-3 mb-4">
+<div class="bg-primary p-2 rounded-lg text-white">
+<span class="material-symbols-outlined">lightbulb</span>
+</div>
+<h3 class="text-primary text-xl font-bold">AI 사장님 멘토링</h3>
+</div>
+<p class="text-slate-800 dark:text-slate-200 leading-relaxed mb-4">
+                                이번 달 지출 중 <strong>재료비</strong>의 비중이 지난달 대비 5% 상승했습니다. 주 식자재인 대파와 식용유의 시세가 급등한 영향으로 보입니다. 
+                            </p>
+<ul class="space-y-3">
+<li class="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300">
+<span class="material-symbols-outlined text-primary text-base mt-0.5">check_circle</span>
+<span>신규 거래처 단가 비교를 통해 재료비를 3% 절감할 수 있습니다.</span>
+</li>
+<li class="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300">
+<span class="material-symbols-outlined text-primary text-base mt-0.5">check_circle</span>
+<span>주말 배달 프로모션 효율을 높이기 위한 마케팅비 재배치를 추천합니다.</span>
+</li>
+</ul>
+</div>
+<button class="mt-8 w-full py-3 bg-white dark:bg-slate-900 border border-primary/30 rounded-xl text-primary font-bold hover:bg-primary/5 transition-all">상세 리포트 보기</button>
+</div>
+</div>
+<!-- Transaction List -->
+<div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden mb-12 shadow-sm">
+<div class="px-6 py-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+<h3 class="text-slate-900 dark:text-white text-xl font-bold">최근 상세 지출 내역</h3>
+<button class="text-primary text-sm font-bold hover:underline">전체보기</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left min-w-[600px]">
+<thead class="bg-slate-50 dark:bg-slate-900/50">
+<tr>
+<th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">날짜</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">거래처</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">AI 태그</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">금액</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+<tr>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">2025.03.15</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">서울농산물도매</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-full">필수 식자재</span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white text-right">-₩850,000</td>
+</tr>
+<tr>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">2025.03.14</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">한국전력공사</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="px-3 py-1 bg-blue-500/10 text-blue-500 text-xs font-bold rounded-full">공과금</span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white text-right">-₩425,000</td>
+</tr>
+<tr>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">2025.03.12</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">인스타그램 광고</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="px-3 py-1 bg-emerald-500/10 text-emerald-500 text-xs font-bold rounded-full">마케팅</span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white text-right">-₩150,000</td>
+</tr>
+<tr>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">2025.03.10</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">삼양유통</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-full">부자재</span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white text-right">-₩120,000</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-12 mt-auto">
+<div class="max-w-[1024px] mx-auto px-6 text-center">
+<p class="text-slate-400 text-sm">© 2025 사장님 든든. All rights reserved.</p>
+</div>
+</footer>
+</div>
+</div>
+</body></html>
