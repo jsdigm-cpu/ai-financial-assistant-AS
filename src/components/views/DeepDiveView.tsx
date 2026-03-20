@@ -1,6 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Transaction, BusinessInfo, Category, DeepDiveAIReport } from '../../types';
 import { exportViewToPdf } from '../../services/pdfExporter';
+import PaymentModal from '../PaymentModal';
+import { PendingPdf, generateOrderId } from '../../hooks/usePaymentGate';
 
 interface Props {
   transactions: Transaction[];
@@ -9,6 +11,8 @@ interface Props {
   deepDiveReport: DeepDiveAIReport | null;
   deepDiveStatus: { isLoading: boolean; error: string | null };
   onGenerate: () => void;
+  pendingPdfDownload?: PendingPdf | null;
+  onPdfDownloadConsumed?: () => void;
 }
 
 const ScoreBar: React.FC<{ score: number }> = ({ score }) => {
@@ -38,11 +42,14 @@ const DeepDiveView: React.FC<Props> = ({
   deepDiveReport,
   deepDiveStatus,
   onGenerate,
+  pendingPdfDownload,
+  onPdfDownloadConsumed,
 }) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  const handleExport = async () => {
+  const doExport = async () => {
     if (!contentRef.current || isExporting) return;
     setIsExporting(true);
     try {
@@ -57,6 +64,20 @@ const DeepDiveView: React.FC<Props> = ({
     } finally {
       setIsExporting(false);
     }
+  };
+
+  useEffect(() => {
+    if (pendingPdfDownload?.type === 'deepdive') {
+      doExport().then(() => onPdfDownloadConsumed?.());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPdfDownload]);
+
+  const pendingPdfInfo: PendingPdf = {
+    type: 'deepdive',
+    orderId: generateOrderId('deepdive'),
+    businessName: businessInfo.name,
+    timestamp: Date.now(),
   };
 
   if (deepDiveStatus.isLoading) {
@@ -148,6 +169,7 @@ const DeepDiveView: React.FC<Props> = ({
   const netProfit = totalIncome - totalExpense;
 
   return (
+    <>
     <div className="space-y-8">
       {/* 헤더 */}
       <div className="bg-white rounded-3xl border border-border-color p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -167,7 +189,7 @@ const DeepDiveView: React.FC<Props> = ({
             재생성
           </button>
           <button
-            onClick={handleExport}
+            onClick={() => setShowPaymentModal(true)}
             disabled={isExporting}
             className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white font-bold rounded-xl shadow-sm transition-all hover:bg-brand-secondary disabled:opacity-50 text-sm"
           >
@@ -306,6 +328,13 @@ const DeepDiveView: React.FC<Props> = ({
         </div>
       </div>
     </div>
+
+    <PaymentModal
+      isOpen={showPaymentModal}
+      onClose={() => setShowPaymentModal(false)}
+      pdfInfo={pendingPdfInfo}
+    />
+    </>
   );
 };
 

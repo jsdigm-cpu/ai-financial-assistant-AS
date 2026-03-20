@@ -35,11 +35,13 @@ interface Props {
   onReset: () => void;
   activeTab: 'plan' | 'operate' | 'value' | 'exit';
   setActiveTab: (tab: 'plan' | 'operate' | 'value' | 'exit') => void;
+  pendingPdfDownload?: import('../hooks/usePaymentGate').PendingPdf | null;
+  onPdfDownloadConsumed?: () => void;
 }
 
 const getUserKey = (info: BusinessInfo) => `financial_dashboard_user_${info.name}_${info.owner}`;
 
-const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles, onReset, activeTab, setActiveTab }) => {
+const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles, onReset, activeTab, setActiveTab, pendingPdfDownload, onPdfDownloadConsumed }) => {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [transactions, setTransactions] = useState<Transaction[]>(initialData.transactions);
   const [errors, setErrors] = useState<string[]>(initialData.errors);
@@ -493,7 +495,7 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
 
     switch (activePage) {
       case 'dashboard':
-        return <DashboardView {...commonProps} />;
+        return <DashboardView {...commonProps} pendingPdfDownload={pendingPdfDownload} onPdfDownloadConsumed={onPdfDownloadConsumed} />;
       case 'transactions':
         return <TransactionsView {...commonProps} onUpdateTransaction={handleUpdateTransaction}/>;
       case 'data-sources':
@@ -504,6 +506,8 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
           deepDiveReport={reports.deepDive}
           deepDiveStatus={reportStatus.deepDive}
           onGenerate={() => handleGenerateFinancialReport('deepDive')}
+          pendingPdfDownload={pendingPdfDownload}
+          onPdfDownloadConsumed={onPdfDownloadConsumed}
         />;
       case 'ai-report':
         return <AIReportView 

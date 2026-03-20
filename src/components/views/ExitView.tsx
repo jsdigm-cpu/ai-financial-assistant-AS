@@ -1,11 +1,15 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BusinessInfo, Transaction } from '../../types';
 import { exportViewToPdf } from '../../services/pdfExporter';
+import PaymentModal from '../PaymentModal';
+import { PendingPdf, generateOrderId } from '../../hooks/usePaymentGate';
 
 interface Props {
   businessInfo: BusinessInfo;
   transactions?: Transaction[];
+  pendingPdfDownload?: PendingPdf | null;
+  onPdfDownloadConsumed?: () => void;
 }
 
 interface ChecklistItem {
@@ -104,9 +108,10 @@ const SUPPORT_PROGRAMS = [
   },
 ];
 
-const ExitView: React.FC<Props> = ({ businessInfo, transactions = [] }) => {
+const ExitView: React.FC<Props> = ({ businessInfo, transactions = [], pendingPdfDownload, onPdfDownloadConsumed }) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(INITIAL_CHECKLIST);
   const [selectedPhase, setSelectedPhase] = useState<number | 'all'>('all');
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
@@ -140,7 +145,7 @@ const ExitView: React.FC<Props> = ({ businessInfo, transactions = [] }) => {
     };
   }, [transactions]);
 
-  const handleExport = async () => {
+  const doExport = async () => {
     if (!contentRef.current || isExporting) return;
     setIsExporting(true);
     try {
@@ -149,7 +154,22 @@ const ExitView: React.FC<Props> = ({ businessInfo, transactions = [] }) => {
     finally { setIsExporting(false); }
   };
 
+  useEffect(() => {
+    if (pendingPdfDownload?.type === 'exit') {
+      doExport().then(() => onPdfDownloadConsumed?.());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPdfDownload]);
+
+  const pendingPdfInfo: PendingPdf = {
+    type: 'exit',
+    orderId: generateOrderId('exit'),
+    businessName: businessInfo.name,
+    timestamp: Date.now(),
+  };
+
   return (
+    <>
     <div className="space-y-8 max-w-7xl mx-auto">
       {/* 헤더 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -161,7 +181,7 @@ const ExitView: React.FC<Props> = ({ businessInfo, transactions = [] }) => {
           <p className="text-text-muted mt-1">단계별 체크리스트로 성공적이고 손실 없는 폐업을 도와드립니다.</p>
         </div>
         <button
-          onClick={handleExport}
+          onClick={() => setShowPaymentModal(true)}
           disabled={isExporting}
           className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white font-bold rounded-xl shadow-sm hover:bg-brand-secondary transition-all disabled:opacity-50 text-sm"
         >
@@ -418,6 +438,13 @@ const ExitView: React.FC<Props> = ({ businessInfo, transactions = [] }) => {
         </div>
       </div>
     </div>
+
+    <PaymentModal
+      isOpen={showPaymentModal}
+      onClose={() => setShowPaymentModal(false)}
+      pdfInfo={pendingPdfInfo}
+    />
+    </>
   );
 };
 

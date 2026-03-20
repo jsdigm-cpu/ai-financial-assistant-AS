@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Transaction, BusinessInfo, Category } from '../../types';
 import { CATEGORY_MAP, DEFAULT_CATEGORY_INCOME, DEFAULT_CATEGORY_EXPENSE } from '../../constants';
 import KPICard from '../KPICard';
@@ -6,11 +6,15 @@ import IncomeExpenseChart from '../IncomeExpenseChart';
 import CategoryPieChart from '../CategoryPieChart';
 import TopCategoriesChart from '../TopCategoriesChart';
 import { exportViewToPdf } from '../../services/pdfExporter';
+import PaymentModal from '../PaymentModal';
+import { PendingPdf, generateOrderId } from '../../hooks/usePaymentGate';
 
 interface Props {
   transactions: Transaction[];
   businessInfo: BusinessInfo;
   categories: Category[];
+  pendingPdfDownload?: PendingPdf | null;
+  onPdfDownloadConsumed?: () => void;
 }
 
 const fmt = (n: number) => n.toLocaleString('ko-KR') + '원';
@@ -67,9 +71,10 @@ function safeGetCostGroup(categoryName: string): string | null {
   return cat?.costGroup || null;
 }
 
-const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories }) => {
+const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories, pendingPdfDownload, onPdfDownloadConsumed }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('all');
   const [isExporting, setIsExporting] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const periodOptions = useMemo(() => getPeriodOptions(transactions), [transactions]);
   const periodLabel = getPeriodLabel(selectedPeriod);
@@ -200,7 +205,7 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
     };
   }, [filteredTransactions, categories]);
 
-  const handleExport = async () => {
+  const doExport = async () => {
     if (!contentRef.current || isExporting) return;
     setIsExporting(true);
     try {
@@ -215,6 +220,21 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
     } finally {
       setIsExporting(false);
     }
+  };
+
+  // 결제 완료 후 자동 다운로드
+  useEffect(() => {
+    if (pendingPdfDownload?.type === 'dashboard') {
+      doExport().then(() => onPdfDownloadConsumed?.());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPdfDownload]);
+
+  const pendingPdfInfo: PendingPdf = {
+    type: 'dashboard',
+    orderId: generateOrderId('dashboard'),
+    businessName: businessInfo.name,
+    timestamp: Date.now(),
   };
 
   const PlRow = ({ label, amount, total, indent = false }: {
@@ -263,6 +283,7 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
   );
 
   return (
+    <>
     <div className="space-y-10 max-w-7xl mx-auto">
       {/* 헤더 + 기간 선택 */}
       <div className="relative flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 p-6 md:p-8 rounded-3xl shadow-sm border border-border-color overflow-hidden bg-white">
@@ -292,7 +313,7 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
               </div>
             </div>
             <button
-              onClick={handleExport}
+              onClick={() => setShowPaymentModal(true)}
               disabled={isExporting}
               className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-brand-primary hover:bg-brand-secondary text-white font-bold rounded-xl shadow-sm transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
             >
@@ -451,6 +472,13 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
         </div>
       </div>
     </div>
+
+    <PaymentModal
+      isOpen={showPaymentModal}
+      onClose={() => setShowPaymentModal(false)}
+      pdfInfo={pendingPdfInfo}
+    />
+    </>
   );
 };
 

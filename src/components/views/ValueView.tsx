@@ -1,14 +1,18 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Transaction, BusinessInfo, Category } from '../../types';
 import { CATEGORY_MAP } from '../../constants';
 import { exportViewToPdf } from '../../services/pdfExporter';
+import PaymentModal from '../PaymentModal';
+import { PendingPdf, generateOrderId } from '../../hooks/usePaymentGate';
 
 interface Props {
   transactions: Transaction[];
   businessInfo: BusinessInfo;
   categories?: Category[];
+  pendingPdfDownload?: PendingPdf | null;
+  onPdfDownloadConsumed?: () => void;
 }
 
 const fmtFull = (n: number) => n.toLocaleString('ko-KR') + '원';
@@ -26,9 +30,10 @@ const METHOD_INFO: Record<ValuationMethod, { label: string; desc: string; icon: 
   dcf:     { label: '현금흐름할인법', desc: '미래 현금흐름의 현재 가치', icon: 'account_balance' },
 };
 
-const ValueView: React.FC<Props> = ({ transactions, businessInfo }) => {
+const ValueView: React.FC<Props> = ({ transactions, businessInfo, pendingPdfDownload, onPdfDownloadConsumed }) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // 자산 입력값
   const [assetValue, setAssetValue] = useState(50000000);
@@ -101,7 +106,7 @@ const ValueView: React.FC<Props> = ({ transactions, businessInfo }) => {
     { subject: '브랜드가치', A: Math.min(100, brandValue / compositeValue * 300) },
   ];
 
-  const handleExport = async () => {
+  const doExport = async () => {
     if (!contentRef.current || isExporting) return;
     setIsExporting(true);
     try {
@@ -118,7 +123,22 @@ const ValueView: React.FC<Props> = ({ transactions, businessInfo }) => {
     }
   };
 
+  useEffect(() => {
+    if (pendingPdfDownload?.type === 'value') {
+      doExport().then(() => onPdfDownloadConsumed?.());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPdfDownload]);
+
+  const pendingPdfInfo: PendingPdf = {
+    type: 'value',
+    orderId: generateOrderId('value'),
+    businessName: businessInfo.name,
+    timestamp: Date.now(),
+  };
+
   return (
+    <>
     <div className="space-y-8 max-w-7xl mx-auto">
       {/* 헤더 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -130,7 +150,7 @@ const ValueView: React.FC<Props> = ({ transactions, businessInfo }) => {
           <p className="text-text-muted mt-1">실제 거래 데이터와 3가지 평가 방법론으로 사업체의 객관적 가치를 산출합니다.</p>
         </div>
         <button
-          onClick={handleExport}
+          onClick={() => setShowPaymentModal(true)}
           disabled={isExporting}
           className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white font-bold rounded-xl shadow-sm hover:bg-brand-secondary transition-all disabled:opacity-50 text-sm"
         >
@@ -352,6 +372,13 @@ const ValueView: React.FC<Props> = ({ transactions, businessInfo }) => {
         </div>
       </div>
     </div>
+
+    <PaymentModal
+      isOpen={showPaymentModal}
+      onClose={() => setShowPaymentModal(false)}
+      pdfInfo={pendingPdfInfo}
+    />
+    </>
   );
 };
 
