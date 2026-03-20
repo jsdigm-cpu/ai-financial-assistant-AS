@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { ProcessedData, BusinessInfo, BusinessType, AccountType, UploadedFileInfo } from '../types';
+import { ProcessedData, BusinessInfo, BusinessType, AccountType, BusinessScale, UploadedFileInfo } from '../types';
 import { parseFile } from '../services/parser';
 import { Transaction } from '../types';
 import { BUSINESS_PRESETS } from '../constants';
@@ -33,6 +33,7 @@ const SetupScreen: React.FC<Props> = ({ onDataProcessed, onGoBack, savedSession,
     owner: '',
     type: BusinessType.RESTAURANT_GENERAL,
     items: '',
+    businessScale: '소규모',
     address: '',
     rawMaterialSuppliers: '',
     subsidiaryMaterialSuppliers: '',
@@ -391,6 +392,34 @@ const SetupScreen: React.FC<Props> = ({ onDataProcessed, onGoBack, savedSession,
                   <div>
                     <label htmlFor="items" className="block text-base font-bold text-text-primary mb-2">주요 취급 품목 <span className="text-red-500">*</span></label>
                     <input type="text" name="items" id="items" value={businessInfo.items} onChange={handleInfoChange} className="w-full bg-white border-2 border-border-color rounded-xl px-4 py-3 text-lg focus:ring-4 focus:ring-brand-accent/20 focus:border-brand-accent text-text-primary transition-all shadow-sm" autoComplete="off" placeholder="예: 후라이드 치킨, 양념 치킨 (쉼표로 구분)"/>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-base font-bold text-text-primary mb-2">
+                      사업장 규모 <span className="text-xs font-normal text-text-muted">(AI 카테고리 최적화에 사용됩니다)</span>
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {([
+                        { value: '소규모' as BusinessScale, label: '소규모', desc: '월매출 3천만원 이하', icon: '🏠', sub: '1인~3인 운영' },
+                        { value: '중규모' as BusinessScale, label: '중규모', desc: '월매출 3천만~1억원', icon: '🏪', sub: '4인~10인 운영' },
+                        { value: '대규모' as BusinessScale, label: '대규모', desc: '월매출 1억원 이상', icon: '🏢', sub: '10인 이상 운영' },
+                      ]).map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setBusinessInfo(prev => ({ ...prev, businessScale: opt.value }))}
+                          className={`p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+                            businessInfo.businessScale === opt.value
+                              ? 'border-brand-accent bg-blue-50 shadow-md'
+                              : 'border-border-color bg-white hover:border-brand-accent/50 hover:bg-surface-subtle'
+                          }`}
+                        >
+                          <div className="text-2xl mb-1">{opt.icon}</div>
+                          <div className={`font-bold text-base ${businessInfo.businessScale === opt.value ? 'text-brand-primary' : 'text-text-primary'}`}>{opt.label}</div>
+                          <div className="text-xs text-text-muted mt-0.5">{opt.desc}</div>
+                          <div className="text-xs text-text-muted">{opt.sub}</div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </>
               )}

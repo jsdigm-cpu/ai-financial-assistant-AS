@@ -18,11 +18,8 @@ interface Props {
 
 // ── 포맷 헬퍼 ──
 const fmtW = (n: number) => n.toLocaleString('ko-KR') + '원';
-const fmtM = (n: number) => {
-  if (Math.abs(n) >= 100_000_000) return (n / 100_000_000).toFixed(1) + '억원';
-  if (Math.abs(n) >= 10_000) return Math.round(n / 10_000).toLocaleString('ko-KR') + '만원';
-  return n.toLocaleString('ko-KR') + '원';
-};
+// 항상 세자리마다 쉼표 표시 (자릿수 혼동 방지)
+const fmtM = (n: number) => n.toLocaleString('ko-KR') + '원';
 const pct = (part: number, total: number) =>
   total === 0 ? '-' : (part / total * 100).toFixed(1) + '%';
 

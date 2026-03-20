@@ -8,7 +8,128 @@ interface Props {
   onUpdateTransaction: (transaction: Transaction) => void;
 }
 
+// 항상 세자리마다 쉼표 표시 (자릿수 혼동 방지)
 const fmt = (v: number) => v.toLocaleString('ko-KR');
+
+// 대분류 그룹 정의 (표시 순서)
+const LEVEL2_GROUPS = [
+  { key: '영업 수익', label: '영업 수익', forIncome: true },
+  { key: '영업외 수익', label: '영업외 수익', forIncome: true },
+  { key: '영업 비용', label: '영업 비용', forIncome: false },
+  { key: '사업외 지출', label: '사업외 지출', forIncome: false },
+];
+
+// costGroup 서브그룹 (영업 비용 내에서만 사용)
+const COST_GROUP_ORDER = ['인건비', '재료비', '고정비', '변동비'];
+
+interface HierarchyCellProps {
+  tx: Transaction;
+  categories: Category[];
+  onUpdate: (txId: string, newCategory: string) => void;
+}
+
+const HierarchyCategoryCell: React.FC<HierarchyCellProps> = ({ tx, categories, onUpdate }) => {
+  const isIncome = tx.credit > 0;
+  const currentCat = CATEGORY_MAP[tx.category] ?? categories.find(c => c.name === tx.category);
+
+  // 현재 카테고리의 대분류 결정
+  const currentLevel2 = currentCat?.level2 ?? (isIncome ? '영업 수익' : '영업 비용');
+  const [selectedLevel2, setSelectedLevel2] = useState<string>(currentLevel2);
+
+  // 트랜잭션이 바뀌면 level2 상태도 동기화
+  useEffect(() => {
+    const cat = CATEGORY_MAP[tx.category] ?? categories.find(c => c.name === tx.category);
+    const l2 = cat?.level2 ?? (tx.credit > 0 ? '영업 수익' : '영업 비용');
+    setSelectedLevel2(l2);
+  }, [tx.category, tx.credit, categories]);
+
+  // 현재 거래에 맞는 대분류 목록
+  const availableLevel2Groups = LEVEL2_GROUPS.filter(g => g.forIncome === isIncome);
+
+  // 선택된 대분류에 속하는 카테고리 목록
+  const filteredCats = useMemo(() => {
+    return categories.filter(c => {
+      const inIncomeSide = isIncome ? c.type.includes('income') : c.type.includes('expense');
+      return inIncomeSide && c.level2 === selectedLevel2;
+    });
+  }, [categories, isIncome, selectedLevel2]);
+
+  const isUnclassified = tx.category === '기타매출' || tx.category === '기타사업비';
+
+  // 대분류 변경 시: 해당 그룹의 첫 번째 카테고리로 자동 이동
+  const handleLevel2Change = (newLevel2: string) => {
+    setSelectedLevel2(newLevel2);
+    const firstCatInGroup = categories.find(c => {
+      const inIncomeSide = isIncome ? c.type.includes('income') : c.type.includes('expense');
+      return inIncomeSide && c.level2 === newLevel2;
+    });
+    if (firstCatInGroup) {
+      onUpdate(tx.id, firstCatInGroup.name);
+    }
+  };
+
+  const handleCategoryChange = (newCat: string) => {
+    onUpdate(tx.id, newCat);
+  };
+
+  // 영업 비용 내에서 costGroup으로 서브그룹 나누기
+  const renderCategoryOptions = () => {
+    if (selectedLevel2 === '영업 비용') {
+      const grouped: Record<string, Category[]> = {};
+      COST_GROUP_ORDER.forEach(g => { grouped[g] = []; });
+      grouped['기타'] = [];
+      filteredCats.forEach(c => {
+        const grp = c.costGroup ?? '기타';
+        if (!grouped[grp]) grouped[grp] = [];
+        grouped[grp].push(c);
+      });
+      return COST_GROUP_ORDER.filter(g => grouped[g]?.length > 0).map(grp => (
+        <optgroup key={grp} label={`── ${grp}`}>
+          {grouped[grp].map(cat => (
+            <option key={cat.name} value={cat.name}>{cat.name}</option>
+          ))}
+        </optgroup>
+      ));
+    }
+    return filteredCats.map(cat => (
+      <option key={cat.name} value={cat.name}>{cat.name}</option>
+    ));
+  };
+
+  return (
+    <div className="flex flex-col gap-1 min-w-[160px]">
+      {/* 대분류 선택 */}
+      <select
+        value={selectedLevel2}
+        onChange={(e) => handleLevel2Change(e.target.value)}
+        className={`text-[10px] font-bold border rounded-md px-1.5 py-0.5 cursor-pointer transition-all focus:ring-1 focus:ring-brand-primary/30 ${
+          isIncome
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            : 'border-red-200 bg-red-50 text-red-700'
+        }`}
+      >
+        {availableLevel2Groups.map(g => (
+          <option key={g.key} value={g.key}>{g.label}</option>
+        ))}
+      </select>
+      {/* 세부 카테고리 선택 */}
+      <select
+        value={filteredCats.some(c => c.name === tx.category) ? tx.category : (filteredCats[0]?.name ?? tx.category)}
+        onChange={(e) => handleCategoryChange(e.target.value)}
+        className={`border rounded-lg px-2 py-1 text-sm font-medium cursor-pointer transition-all focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary ${
+          isUnclassified
+            ? 'border-amber-300 bg-amber-50 text-amber-800 font-bold'
+            : 'border-border-color bg-surface-subtle text-text-primary'
+        }`}
+      >
+        {renderCategoryOptions()}
+      </select>
+      {isUnclassified && (
+        <span className="text-[9px] text-amber-500 font-bold">미분류</span>
+      )}
+    </div>
+  );
+};
 
 const TransactionsTable: React.FC<Props> = ({ transactions, categories, onUpdateTransaction }) => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -35,22 +156,6 @@ const TransactionsTable: React.FC<Props> = ({ transactions, categories, onUpdate
   const formatDate = (date: Date) =>
     date.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
-  const incomeCategories = useMemo(() => categories.filter(c => c.type.includes('income')), [categories]);
-  const expenseCategories = useMemo(() => categories.filter(c => c.type.includes('expense')), [categories]);
-
-  const isUnclassified = (tx: Transaction) =>
-    tx.category === '기타매출' || tx.category === '기타사업비';
-
-  const getCatColor = (cat: string) => {
-    const type = CATEGORY_MAP[cat]?.type;
-    if (!type) return '';
-    if (type === 'operating_income') return 'text-emerald-700 bg-emerald-50 border-emerald-200';
-    if (type === 'non_operating_income') return 'text-teal-700 bg-teal-50 border-teal-200';
-    if (type === 'operating_expense') return 'text-red-700 bg-red-50 border-red-200';
-    if (type === 'non_operating_expense') return 'text-orange-700 bg-orange-50 border-orange-200';
-    return '';
-  };
-
   return (
     <div className="bg-white rounded-2xl overflow-hidden">
       <div className="overflow-x-auto custom-scrollbar">
@@ -62,18 +167,17 @@ const TransactionsTable: React.FC<Props> = ({ transactions, categories, onUpdate
               <th className="px-4 py-3 text-right text-xs font-bold text-text-muted uppercase tracking-wider">출금액</th>
               <th className="px-4 py-3 text-right text-xs font-bold text-text-muted uppercase tracking-wider">입금액</th>
               <th className="px-4 py-3 text-right text-xs font-bold text-text-muted uppercase tracking-wider">잔액</th>
-              <th className="px-4 py-3 text-left text-xs font-bold text-text-muted uppercase tracking-wider">카테고리</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-text-muted uppercase tracking-wider">카테고리 (대분류 → 세부)</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-border-color/40">
             {paginatedTransactions.map((tx) => {
-              const availableCategories = tx.credit > 0 ? incomeCategories : expenseCategories;
-              const unclassified = isUnclassified(tx);
+              const isUnclassified = tx.category === '기타매출' || tx.category === '기타사업비';
 
               return (
                 <tr
                   key={tx.id}
-                  className={`hover:bg-surface-subtle/60 transition-colors ${unclassified ? 'bg-amber-50/40' : ''}`}
+                  className={`hover:bg-surface-subtle/60 transition-colors ${isUnclassified ? 'bg-amber-50/40' : ''}`}
                 >
                   <td className="px-4 py-2.5 whitespace-nowrap text-sm font-medium text-text-primary">
                     {formatDate(tx.date)}
@@ -93,22 +197,11 @@ const TransactionsTable: React.FC<Props> = ({ transactions, categories, onUpdate
                     {tx.balance > 0 ? fmt(tx.balance) : '-'}
                   </td>
                   <td className="px-4 py-2.5 whitespace-nowrap">
-                    <select
-                      value={tx.category}
-                      onChange={(e) => handleCategoryChange(tx.id, e.target.value)}
-                      className={`border rounded-lg px-2.5 py-1 text-sm font-medium cursor-pointer transition-all focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary ${
-                        unclassified
-                          ? 'border-amber-300 bg-amber-50 text-amber-800 font-bold'
-                          : 'border-border-color bg-surface-subtle text-text-primary'
-                      }`}
-                    >
-                      {availableCategories.map((cat) => (
-                        <option key={cat.name} value={cat.name}>{cat.name}</option>
-                      ))}
-                    </select>
-                    {unclassified && (
-                      <span className="ml-1 text-[10px] text-amber-500 font-bold">미분류</span>
-                    )}
+                    <HierarchyCategoryCell
+                      tx={tx}
+                      categories={categories}
+                      onUpdate={handleCategoryChange}
+                    />
                   </td>
                 </tr>
               );

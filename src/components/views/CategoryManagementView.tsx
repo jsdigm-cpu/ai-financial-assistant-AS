@@ -31,9 +31,9 @@ const typeColors: Record<Category['type'], string> = {
   non_operating_expense: 'bg-orange-100 text-orange-700 border-orange-200',
 };
 
+// 항상 세자리마다 쉼표 표시 (자릿수 혼동 방지)
 const fmt = (v: number) => {
   if (v === 0) return '-';
-  if (Math.abs(v) >= 10000) return (v / 10000).toFixed(0) + '만원';
   return v.toLocaleString('ko-KR') + '원';
 };
 
@@ -72,6 +72,7 @@ const CategoryManagementView: React.FC<Props> = ({
   const [newRuleKeyword, setNewRuleKeyword] = useState('');
   const [newRuleCategory, setNewRuleCategory] = useState('');
   const [ruleSearch, setRuleSearch] = useState('');
+  const [ruleAddedMsg, setRuleAddedMsg] = useState<string | null>(null);
 
   const renameInputRef = useRef<HTMLInputElement>(null);
 
@@ -189,12 +190,30 @@ const CategoryManagementView: React.FC<Props> = ({
   // ── 규칙 추가 ──
   const handleAddRule = () => {
     if (!newRuleKeyword.trim() || !newRuleCategory) return;
-    onAddRule({ keyword: newRuleKeyword.trim(), category: newRuleCategory, source: 'manual' });
+    const keyword = newRuleKeyword.trim();
+    const matchCount = transactions.filter(t =>
+      t.description.toLowerCase().includes(keyword.toLowerCase())
+    ).length;
+    onAddRule({ keyword, category: newRuleCategory, source: 'manual' });
     setNewRuleKeyword('');
+    const msg = matchCount > 0
+      ? `✓ "${keyword}" 규칙 추가 완료 — ${matchCount}건 자동 재분류됨`
+      : `✓ "${keyword}" 규칙이 추가되었습니다 (해당 거래 없음)`;
+    setRuleAddedMsg(msg);
+    setTimeout(() => setRuleAddedMsg(null), 3500);
   };
 
   const handleAddRuleFromDescription = (desc: string, catName: string) => {
+    const matchCount = transactions.filter(t =>
+      t.description.toLowerCase().includes(desc.toLowerCase())
+    ).length;
     onAddRule({ keyword: desc, category: catName, source: 'manual' });
+    const msg = matchCount > 0
+      ? `✓ "${desc}" 규칙 추가 — ${matchCount}건 자동 재분류됨`
+      : `✓ "${desc}" 규칙이 추가되었습니다`;
+    setRuleAddedMsg(msg);
+    setTimeout(() => setRuleAddedMsg(null), 3500);
+    setActiveTab('rules');
   };
 
   // 카테고리 타입별 그룹
@@ -213,9 +232,17 @@ const CategoryManagementView: React.FC<Props> = ({
   }, [rules, ruleSearch]);
 
   const typeOrder: Category['type'][] = ['operating_income', 'non_operating_income', 'operating_expense', 'non_operating_expense'];
+  const COST_GROUP_ORDER = ['인건비', '재료비', '고정비', '변동비'];
 
   return (
     <div className="space-y-4">
+      {/* 규칙 추가 완료 알림 */}
+      {ruleAddedMsg && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm font-semibold animate-fadeIn">
+          <span className="material-symbols-outlined text-base">check_circle</span>
+          {ruleAddedMsg}
+        </div>
+      )}
       {/* 탭 */}
       <div className="bg-white rounded-2xl border border-border-color p-1 flex gap-1">
         {([
@@ -374,15 +401,45 @@ const CategoryManagementView: React.FC<Props> = ({
                             <select
                               value={tx.category}
                               onChange={(e) => onUpdateTransaction({ ...tx, category: e.target.value })}
-                              className={`text-xs border rounded-lg px-2 py-1 cursor-pointer transition-all ${
+                              className={`text-xs border rounded-lg px-2 py-1 cursor-pointer transition-all max-w-[160px] ${
                                 isUnclassified
                                   ? 'border-amber-300 bg-amber-50 text-amber-800 font-bold'
                                   : 'border-border-color bg-surface-subtle text-text-primary'
                               }`}
                             >
-                              {availableCats.map(cat => (
-                                <option key={cat.name} value={cat.name}>{cat.name}</option>
-                              ))}
+                              {isIncome ? (
+                                <>
+                                  <optgroup label="── 영업 수익">
+                                    {availableCats.filter(c => c.level2 === '영업 수익').map(cat => (
+                                      <option key={cat.name} value={cat.name}>{cat.name}</option>
+                                    ))}
+                                  </optgroup>
+                                  <optgroup label="── 영업외 수익">
+                                    {availableCats.filter(c => c.level2 === '영업외 수익').map(cat => (
+                                      <option key={cat.name} value={cat.name}>{cat.name}</option>
+                                    ))}
+                                  </optgroup>
+                                </>
+                              ) : (
+                                <>
+                                  {COST_GROUP_ORDER.map(grp => {
+                                    const grpCats = availableCats.filter(c => c.level2 === '영업 비용' && c.costGroup === grp);
+                                    if (!grpCats.length) return null;
+                                    return (
+                                      <optgroup key={grp} label={`── 영업비용 / ${grp}`}>
+                                        {grpCats.map(cat => (
+                                          <option key={cat.name} value={cat.name}>{cat.name}</option>
+                                        ))}
+                                      </optgroup>
+                                    );
+                                  })}
+                                  <optgroup label="── 사업외 지출">
+                                    {availableCats.filter(c => c.level2 === '사업외 지출').map(cat => (
+                                      <option key={cat.name} value={cat.name}>{cat.name}</option>
+                                    ))}
+                                  </optgroup>
+                                </>
+                              )}
                             </select>
                           ) : (
                             <span className={`text-xs px-2 py-1 rounded-lg border ${typeColors[categories.find(c => c.name === tx.category)?.type || 'operating_expense']}`}>
@@ -605,11 +662,17 @@ const CategoryManagementView: React.FC<Props> = ({
                 규칙 추가
               </button>
             </div>
-            {newRuleKeyword && newRuleCategory && (
-              <p className="mt-2 text-xs text-brand-primary font-medium">
-                ✓ "{newRuleKeyword}"가 포함된 거래 → <strong>{newRuleCategory}</strong> 로 자동 분류됩니다
-              </p>
-            )}
+            {newRuleKeyword && newRuleCategory && (() => {
+              const previewCount = transactions.filter(t =>
+                t.description.toLowerCase().includes(newRuleKeyword.toLowerCase())
+              ).length;
+              return (
+                <p className="mt-2 text-xs text-brand-primary font-medium">
+                  ✓ "{newRuleKeyword}"가 포함된 거래 → <strong>{newRuleCategory}</strong> 로 즉시 재분류
+                  {previewCount > 0 && <span className="ml-1 px-1.5 py-0.5 bg-brand-primary/10 rounded-full font-bold">{previewCount}건 해당</span>}
+                </p>
+              );
+            })()}
           </div>
 
           {/* 규칙 검색 + 목록 */}
