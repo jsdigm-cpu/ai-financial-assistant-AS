@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Transaction, BusinessInfo, Category } from '../../types';
-import { CATEGORY_MAP, DEFAULT_CATEGORY_INCOME, DEFAULT_CATEGORY_EXPENSE } from '../../constants';
-import KPICard from '../KPICard';
+import { CATEGORY_MAP } from '../../constants';
 import IncomeExpenseChart from '../IncomeExpenseChart';
 import CategoryPieChart from '../CategoryPieChart';
 import TopCategoriesChart from '../TopCategoriesChart';
@@ -17,218 +16,281 @@ interface Props {
   onPdfDownloadConsumed?: () => void;
 }
 
-const fmt = (n: number) => n.toLocaleString('ko-KR') + '원';
-const pct = (part: number, total: number) => total === 0 ? '-' : (part / total * 100).toFixed(1) + '%';
+// ── 포맷 헬퍼 ──
+const fmtW = (n: number) => n.toLocaleString('ko-KR') + '원';
+const fmtM = (n: number) => {
+  if (Math.abs(n) >= 100_000_000) return (n / 100_000_000).toFixed(1) + '억원';
+  if (Math.abs(n) >= 10_000) return Math.round(n / 10_000).toLocaleString('ko-KR') + '만원';
+  return n.toLocaleString('ko-KR') + '원';
+};
+const pct = (part: number, total: number) =>
+  total === 0 ? '-' : (part / total * 100).toFixed(1) + '%';
 
-function getPeriodOptions(transactions: Transaction[]): { label: string; value: string }[] {
+// ── 기간 선택 헬퍼 ──
+function getPeriodOptions(txs: Transaction[]) {
   const months = new Set<string>();
   const years = new Set<string>();
-  transactions.forEach(tx => {
-    const y = tx.date.getFullYear();
-    const m = String(tx.date.getMonth() + 1).padStart(2, '0');
+  txs.forEach(t => {
+    const y = t.date.getFullYear();
+    const m = String(t.date.getMonth() + 1).padStart(2, '0');
     months.add(`${y}-${m}`);
     years.add(String(y));
   });
-  const sortedMonths = [...months].sort();
-  const sortedYears = [...years].sort();
-  const options: { label: string; value: string }[] = [
-    { label: '전체 기간', value: 'all' },
-  ];
-  sortedYears.forEach(y => options.push({ label: `${y}년`, value: `year-${y}` }));
-  sortedMonths.forEach(m => options.push({ label: m, value: `month-${m}` }));
-  return options;
+  const opts: { label: string; value: string }[] = [{ label: '전체 기간', value: 'all' }];
+  [...years].sort().forEach(y => opts.push({ label: `${y}년`, value: `year-${y}` }));
+  [...months].sort().forEach(m => opts.push({ label: `${m.replace('-', '년 ')}월`, value: `month-${m}` }));
+  return opts;
 }
 
-function filterByPeriod(transactions: Transaction[], period: string): Transaction[] {
-  if (period === 'all') return transactions;
+function filterByPeriod(txs: Transaction[], period: string) {
+  if (period === 'all') return txs;
   if (period.startsWith('year-')) {
-    const year = parseInt(period.replace('year-', ''));
-    return transactions.filter(tx => tx.date.getFullYear() === year);
+    const y = parseInt(period.replace('year-', ''));
+    return txs.filter(t => t.date.getFullYear() === y);
   }
   if (period.startsWith('month-')) {
     const [y, m] = period.replace('month-', '').split('-').map(Number);
-    return transactions.filter(tx => tx.date.getFullYear() === y && tx.date.getMonth() + 1 === m);
+    return txs.filter(t => t.date.getFullYear() === y && t.date.getMonth() + 1 === m);
   }
-  return transactions;
+  return txs;
 }
 
-function getPeriodLabel(period: string): string {
+function getPeriodLabel(period: string) {
   if (period === 'all') return '전체 기간';
   if (period.startsWith('year-')) return period.replace('year-', '') + '년';
-  if (period.startsWith('month-')) return period.replace('month-', '');
+  if (period.startsWith('month-')) return period.replace('month-', '').replace('-', '년 ') + '월';
   return '';
 }
 
-function safeGetLevel2(categoryName: string, isIncome: boolean): string {
-  const cat = CATEGORY_MAP[categoryName];
-  if (cat) return cat.level2;
-  if (isIncome) return '영업외 수익';
-  return '사업외 지출';
+function getLevel2(catName: string, isIncome: boolean) {
+  return CATEGORY_MAP[catName]?.level2 ?? (isIncome ? '영업외 수익' : '사업외 지출');
 }
 
-function safeGetCostGroup(categoryName: string): string | null {
-  const cat = CATEGORY_MAP[categoryName];
-  return cat?.costGroup || null;
+function getCostGroup(catName: string) {
+  return CATEGORY_MAP[catName]?.costGroup ?? null;
 }
 
+// ── 손익 계산 핵심 로직 ──
+function calcPL(txs: Transaction[]) {
+  const sumL2 = (l2: string) => {
+    let t = 0;
+    txs.forEach(tx => {
+      if (getLevel2(tx.category, tx.credit > 0) === l2)
+        t += tx.credit > 0 ? tx.credit : tx.debit;
+    });
+    return t;
+  };
+
+  const sumCG = (cg: string) => {
+    let t = 0;
+    txs.forEach(tx => {
+      if (tx.debit > 0 && getCostGroup(tx.category) === cg) t += tx.debit;
+    });
+    return t;
+  };
+
+  const getDetail = (l2: string, cg?: string) => {
+    const map: Record<string, number> = {};
+    txs.forEach(tx => {
+      const isInc = tx.credit > 0;
+      if (getLevel2(tx.category, isInc) !== l2) return;
+      if (cg && getCostGroup(tx.category) !== cg) return;
+      const amt = isInc ? tx.credit : tx.debit;
+      map[tx.category] = (map[tx.category] ?? 0) + amt;
+    });
+    return Object.entries(map)
+      .map(([name, amount]) => ({ name, amount }))
+      .filter(x => x.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+  };
+
+  // ① 사업 손익
+  const bizRevenue   = sumL2('영업 수익');
+  const bizExpense   = sumL2('영업 비용');
+  const bizProfit    = bizRevenue - bizExpense;
+
+  // ② 영업외 수지
+  const nonOpIncome  = sumL2('영업외 수익');
+  const nonOpExpense = sumL2('사업외 지출');
+  const nonOpBalance = nonOpIncome - nonOpExpense;
+
+  // ③ 현금 종합수지
+  const cashTotal = bizProfit + nonOpBalance;
+
+  // 비용 그룹
+  const laborCost    = sumCG('인건비');
+  const materialCost = sumCG('재료비');
+  const fixedCost    = sumCG('고정비');
+  const variableCost = sumCG('변동비');
+
+  return {
+    bizRevenue, bizExpense, bizProfit,
+    nonOpIncome, nonOpExpense, nonOpBalance,
+    cashTotal,
+    laborCost, materialCost, fixedCost, variableCost,
+    incomeDetail:   getDetail('영업 수익'),
+    laborDetail:    getDetail('영업 비용', '인건비'),
+    materialDetail: getDetail('영업 비용', '재료비'),
+    fixedDetail:    getDetail('영업 비용', '고정비'),
+    variableDetail: getDetail('영업 비용', '변동비'),
+    nonOpIncDetail: getDetail('영업외 수익'),
+    nonOpExpDetail: getDetail('사업외 지출'),
+  };
+}
+
+// ── 3단계 손익 요약 카드 ──
+const SummaryBlock: React.FC<{
+  badge: string;
+  title: string;
+  subtitle: string;
+  left: { label: string; value: number; color: string };
+  right: { label: string; value: number; color: string };
+  result: { label: string; value: number };
+  bgClass: string;
+}> = ({ badge, title, subtitle, left, right, result, bgClass }) => {
+  const isPos = result.value >= 0;
+  return (
+    <div className={`rounded-2xl border p-5 flex flex-col gap-3 ${bgClass}`}>
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-black px-2 py-0.5 rounded-full bg-white/60 text-text-primary">{badge}</span>
+        <div>
+          <p className="text-sm font-bold text-text-primary leading-tight">{title}</p>
+          <p className="text-xs text-text-muted">{subtitle}</p>
+        </div>
+      </div>
+      {/* 계산식 */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="text-center">
+          <p className="text-[10px] font-bold text-text-muted uppercase">{left.label}</p>
+          <p className={`text-base font-black ${left.color}`}>{fmtM(left.value)}</p>
+        </div>
+        <span className="text-text-muted font-bold">-</span>
+        <div className="text-center">
+          <p className="text-[10px] font-bold text-text-muted uppercase">{right.label}</p>
+          <p className={`text-base font-black ${right.color}`}>{fmtM(right.value)}</p>
+        </div>
+        <span className="text-text-muted font-bold">=</span>
+        <div className="text-center flex-1">
+          <p className="text-[10px] font-bold text-text-muted uppercase">{result.label}</p>
+          <p className={`text-xl font-black ${isPos ? 'text-emerald-600' : 'text-red-600'}`}>
+            {isPos ? '+' : ''}{fmtM(result.value)}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── P&L 테이블 행 컴포넌트 ──
+const PlRow: React.FC<{ label: string; amount: number; base: number; indent?: boolean }> = ({ label, amount, base, indent }) => (
+  <tr className="hover:bg-surface-subtle/40 border-b border-border-color/20 last:border-0">
+    <td className={`py-2.5 px-4 text-sm text-text-muted font-medium ${indent ? 'pl-10' : ''}`}>{label}</td>
+    <td className="py-2.5 px-4 text-right text-sm font-semibold text-text-primary">{fmtW(amount)}</td>
+    <td className="py-2.5 px-4 text-right text-sm text-text-muted font-medium">{pct(amount, base)}</td>
+  </tr>
+);
+
+const PlSubtotal: React.FC<{ label: string; amount: number; base: number }> = ({ label, amount, base }) => (
+  <tr className="border-t border-border-color bg-surface-subtle/50">
+    <td className="py-2.5 px-4 pl-8 text-sm font-bold text-text-primary">{label}</td>
+    <td className="py-2.5 px-4 text-right text-sm font-bold text-text-primary">{fmtW(amount)}</td>
+    <td className="py-2.5 px-4 text-right text-sm font-bold text-text-muted">{pct(amount, base)}</td>
+  </tr>
+);
+
+const PlSectionHead: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <tr className="bg-white">
+    <td colSpan={3} className="py-3 px-4 font-bold text-sm text-brand-accent border-b-2 border-brand-accent/20">
+      {children}
+    </td>
+  </tr>
+);
+
+const PlKeyRow: React.FC<{ badge: string; label: string; amount: number; base: number; desc?: string }> = ({ badge, label, amount, base, desc }) => {
+  const isPos = amount >= 0;
+  return (
+    <tr className={`border-t-2 ${isPos ? 'border-emerald-400 bg-emerald-50/60' : 'border-red-400 bg-red-50/60'}`}>
+      <td className="py-3.5 px-4">
+        <span className={`text-xs font-black px-2 py-0.5 rounded-full mr-2 ${isPos ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{badge}</span>
+        <span className="font-bold text-text-primary">{label}</span>
+        {desc && <span className="ml-2 text-xs text-text-muted font-normal">{desc}</span>}
+      </td>
+      <td className={`py-3.5 px-4 text-right text-lg font-black ${isPos ? 'text-emerald-600' : 'text-red-600'}`}>
+        {isPos ? '+' : ''}{fmtW(amount)}
+      </td>
+      <td className="py-3.5 px-4 text-right font-bold text-text-muted">{pct(amount, base)}</td>
+    </tr>
+  );
+};
+
+const PlFinalRow: React.FC<{ amount: number; base: number }> = ({ amount, base }) => {
+  const isPos = amount >= 0;
+  return (
+    <tr className={`border-t-4 ${isPos ? 'border-brand-primary bg-brand-primary/5' : 'border-red-500 bg-red-50'}`}>
+      <td className="py-5 px-4">
+        <div className="flex items-center gap-2">
+          <span className="text-base font-black px-2.5 py-1 rounded-xl bg-brand-primary text-white">③</span>
+          <div>
+            <p className="font-black text-brand-primary text-base">현금 종합수지</p>
+            <p className="text-xs text-text-muted font-normal">= ① 사업손익 + ② 영업외수지</p>
+          </div>
+        </div>
+      </td>
+      <td className={`py-5 px-4 text-right text-2xl font-black ${isPos ? 'text-brand-primary' : 'text-red-600'}`}>
+        {isPos ? '+' : ''}{fmtW(amount)}
+      </td>
+      <td className="py-5 px-4 text-right font-bold text-brand-primary">{pct(amount, base)}</td>
+    </tr>
+  );
+};
+
+// ── 메인 대시보드 ──
 const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories, pendingPdfDownload, onPdfDownloadConsumed }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('all');
   const [isExporting, setIsExporting] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+
   const periodOptions = useMemo(() => getPeriodOptions(transactions), [transactions]);
   const periodLabel = getPeriodLabel(selectedPeriod);
+  const filteredTxs = useMemo(() => filterByPeriod(transactions, selectedPeriod), [transactions, selectedPeriod]);
+  const pl = useMemo(() => calcPL(filteredTxs), [filteredTxs]);
 
-  const filteredTransactions = useMemo(
-    () => filterByPeriod(transactions, selectedPeriod),
-    [transactions, selectedPeriod]
-  );
-
-  const { operatingTransactions, kpiData, monthlyChartData, plData } = useMemo(() => {
-    const txs = filteredTransactions;
-
-    const operatingTxs = txs.filter(tx => {
-      const cat = CATEGORY_MAP[tx.category];
-      const type = cat?.type;
-      return type === 'operating_income' || type === 'operating_expense';
+  const monthlyData = useMemo(() => {
+    const map: Record<string, { bizRev: number; bizExp: number; nonOpInc: number; nonOpExp: number }> = {};
+    filteredTxs.forEach(tx => {
+      const key = `${tx.date.getFullYear()}-${String(tx.date.getMonth() + 1).padStart(2, '0')}`;
+      if (!map[key]) map[key] = { bizRev: 0, bizExp: 0, nonOpInc: 0, nonOpExp: 0 };
+      const l2 = getLevel2(tx.category, tx.credit > 0);
+      if (l2 === '영업 수익') map[key].bizRev += tx.credit;
+      else if (l2 === '영업 비용') map[key].bizExp += tx.debit;
+      else if (l2 === '영업외 수익') map[key].nonOpInc += tx.credit;
+      else if (l2 === '사업외 지출') map[key].nonOpExp += tx.debit;
     });
-
-    const accountTotals: Record<string, number> = {};
-    txs.forEach(t => {
-      const amount = t.credit > 0 ? t.credit : t.debit;
-      accountTotals[t.category] = (accountTotals[t.category] || 0) + amount;
-    });
-
-    const sumByLevel2 = (level2: string) => {
-      let total = 0;
-      txs.forEach(t => {
-        const isIncome = t.credit > 0;
-        const l2 = safeGetLevel2(t.category, isIncome);
-        if (l2 === level2) {
-          total += isIncome ? t.credit : t.debit;
-        }
-      });
-      return total;
-    };
-
-    const sumByCostGroup = (group: string) => {
-      let total = 0;
-      txs.forEach(t => {
-        if (t.debit > 0 && safeGetCostGroup(t.category) === group) {
-          total += t.debit;
-        }
-      });
-      return total;
-    };
-
-    const operatingRevenue = sumByLevel2('영업 수익');
-    const operatingExpense = sumByLevel2('영업 비용');
-    const nonOperatingIncome = sumByLevel2('영업외 수익');
-    const nonOperatingExpense = sumByLevel2('사업외 지출');
-
-    const laborCost = sumByCostGroup('인건비');
-    const materialCost = sumByCostGroup('재료비');
-    const fixedCost = sumByCostGroup('고정비');
-    const variableCost = sumByCostGroup('변동비');
-
-    const operatingProfit = operatingRevenue - operatingExpense;
-    const nonOperatingBalance = nonOperatingIncome - nonOperatingExpense;
-    const profitRate = operatingRevenue > 0 ? (operatingProfit / operatingRevenue * 100) : 0;
-
-    const getAccountDetail = (level2: string, costGroup?: string) => {
-      const result: Record<string, number> = {};
-      txs.forEach(t => {
-        const isIncome = t.credit > 0;
-        const l2 = safeGetLevel2(t.category, isIncome);
-        const cg = safeGetCostGroup(t.category);
-        if (l2 === level2 && (!costGroup || cg === costGroup)) {
-          const amount = isIncome ? t.credit : t.debit;
-          result[t.category] = (result[t.category] || 0) + amount;
-        }
-      });
-      return Object.entries(result)
-        .map(([name, amount]) => ({ name, amount }))
-        .filter(a => a.amount > 0)
-        .sort((a, b) => b.amount - a.amount);
-    };
-
-    const monthlyData: Record<string, { operatingRevenue: number; operatingExpense: number; nonOperatingIncome: number; nonOperatingExpense: number }> = {};
-    txs.forEach(tx => {
-      const month = `${tx.date.getFullYear()}-${String(tx.date.getMonth() + 1).padStart(2, '0')}`;
-      if (!monthlyData[month]) {
-        monthlyData[month] = { operatingRevenue: 0, operatingExpense: 0, nonOperatingIncome: 0, nonOperatingExpense: 0 };
-      }
-      const isIncome = tx.credit > 0;
-      const l2 = safeGetLevel2(tx.category, isIncome);
-      if (l2 === '영업 수익') monthlyData[month].operatingRevenue += tx.credit;
-      else if (l2 === '영업 비용') monthlyData[month].operatingExpense += tx.debit;
-      else if (l2 === '영업외 수익') monthlyData[month].nonOperatingIncome += tx.credit;
-      else if (l2 === '사업외 지출') monthlyData[month].nonOperatingExpense += tx.debit;
-    });
-
-    const monthlyChartDataResult = Object.keys(monthlyData)
-      .map(month => {
-        const d = monthlyData[month];
-        return {
-          name: month,
-          "사업매출": d.operatingRevenue,
-          "사업비용": d.operatingExpense,
-          "사업순손익": d.operatingRevenue - d.operatingExpense,
-          "영업외수지": d.nonOperatingIncome - d.nonOperatingExpense,
-        };
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    return {
-      operatingTransactions: operatingTxs,
-      kpiData: { operatingRevenue, operatingExpense, operatingProfit, nonOperatingBalance, profitRate },
-      monthlyChartData: monthlyChartDataResult,
-      plData: {
-        incomeDetail: getAccountDetail('영업 수익'),
-        operatingRevenue,
-        laborDetail: getAccountDetail('영업 비용', '인건비'),
-        laborCost,
-        materialDetail: getAccountDetail('영업 비용', '재료비'),
-        materialCost,
-        fixedDetail: getAccountDetail('영업 비용', '고정비'),
-        fixedCost,
-        variableDetail: getAccountDetail('영업 비용', '변동비'),
-        variableCost,
-        operatingExpense,
-        operatingProfit,
-        nonOpIncomeDetail: getAccountDetail('영업외 수익'),
-        nonOperatingIncome,
-        nonOpExpenseDetail: getAccountDetail('사업외 지출'),
-        nonOperatingExpense,
-        nonOperatingBalance,
-      },
-    };
-  }, [filteredTransactions, categories]);
+    return Object.keys(map).sort().map(k => ({
+      name: k,
+      '사업매출': map[k].bizRev,
+      '사업비용': map[k].bizExp,
+      '사업손익': map[k].bizRev - map[k].bizExp,
+      '영업외수지': map[k].nonOpInc - map[k].nonOpExp,
+      '현금종합수지': (map[k].bizRev - map[k].bizExp) + (map[k].nonOpInc - map[k].nonOpExp),
+    }));
+  }, [filteredTxs]);
 
   const doExport = async () => {
     if (!contentRef.current || isExporting) return;
     setIsExporting(true);
     try {
-      await exportViewToPdf(
-        contentRef.current,
-        '종합 대시보드',
-        businessInfo.name,
-        `${businessInfo.name}_dashboard_${new Date().toISOString().slice(0, 10)}`
-      );
-    } catch (err) {
-      console.error('PDF 내보내기 오류:', err);
-    } finally {
-      setIsExporting(false);
-    }
+      await exportViewToPdf(contentRef.current, '종합 대시보드', businessInfo.name,
+        `${businessInfo.name}_dashboard_${new Date().toISOString().slice(0, 10)}`);
+    } catch (e) { console.error(e); }
+    finally { setIsExporting(false); }
   };
 
-  // 결제 완료 후 자동 다운로드 (contentRef가 마운트된 후 실행되도록 지연)
   useEffect(() => {
     if (pendingPdfDownload?.type === 'dashboard') {
-      const timer = setTimeout(() => {
-        doExport().then(() => onPdfDownloadConsumed?.());
-      }, 500);
-      return () => clearTimeout(timer);
+      const t = setTimeout(() => doExport().then(() => onPdfDownloadConsumed?.()), 500);
+      return () => clearTimeout(t);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPdfDownload]);
@@ -240,239 +302,283 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
     timestamp: Date.now(),
   };
 
-  const PlRow = ({ label, amount, total, indent = false }: {
-    label: string; amount: number; total: number; indent?: boolean;
-  }) => (
-    <tr className="hover:bg-surface-subtle/50 transition-colors border-b border-border-color/30 last:border-0">
-      <td className={`py-3 px-4 ${indent ? 'pl-10' : ''} text-text-muted font-medium`}>{label}</td>
-      <td className={`py-3 px-4 text-right font-semibold ${amount < 0 ? 'text-red-600' : 'text-text-primary'}`}>{fmt(amount)}</td>
-      <td className="py-3 px-4 text-right text-text-muted font-medium">{pct(amount, total)}</td>
-    </tr>
-  );
-
-  const PlSubtotal = ({ label, amount, total }: { label: string; amount: number; total: number }) => (
-    <tr className="border-t border-border-color bg-surface-subtle/30">
-      <td className="py-3 px-4 pl-8 font-bold text-brand-primary">{label}</td>
-      <td className={`py-3 px-4 text-right font-bold ${amount < 0 ? 'text-red-600' : 'text-brand-primary'}`}>{fmt(amount)}</td>
-      <td className="py-3 px-4 text-right font-bold text-brand-primary">{pct(amount, total)}</td>
-    </tr>
-  );
-
-  const PlSectionHeader = ({ label }: { label: string }) => (
-    <tr className="bg-white">
-      <td colSpan={3} className="py-4 px-4 font-bold text-brand-accent text-base border-b-2 border-brand-accent/20">{label}</td>
-    </tr>
-  );
-
-  const PlTotalRow = ({ label, amount, total, star = false }: { label: string; amount: number; total: number; star?: boolean }) => (
-    <tr className="border-t-2 border-brand-primary bg-brand-primary/5">
-      <td className="py-4 px-4 font-bold text-brand-primary text-lg">{star ? '★ ' : ''}{label}</td>
-      <td className={`py-4 px-4 text-right font-bold text-xl ${amount < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{fmt(amount)}</td>
-      <td className="py-4 px-4 text-right font-bold text-brand-primary">{pct(amount, total)}</td>
-    </tr>
-  );
-
-  const SectionTitle = ({ title, icon, desc }: { title: string; icon?: string; desc?: string }) => (
-    <div className="mb-6">
-      <h3 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-        {icon && <span className="text-2xl">{icon}</span>}
-        {title}
-        <span className="ml-3 text-sm font-bold text-brand-primary bg-brand-primary/10 px-3 py-1 rounded-full border border-brand-primary/20">
-          {periodLabel}
-        </span>
-      </h3>
-      {desc && <p className="text-base text-text-muted mt-2 font-medium">{desc}</p>}
-    </div>
-  );
+  const profitRate = pl.bizRevenue > 0 ? (pl.bizProfit / pl.bizRevenue * 100).toFixed(1) : '0.0';
 
   return (
     <>
-    <div className="space-y-10 max-w-7xl mx-auto">
-      {/* 헤더 + 기간 선택 */}
-      <div className="relative flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 p-6 md:p-8 rounded-3xl shadow-sm border border-border-color overflow-hidden bg-white">
-        <div className="w-full flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
-          <div>
-            <h2 className="text-3xl font-bold text-text-primary flex items-center gap-3">
-              <div className="w-12 h-12 bg-brand-primary/10 rounded-2xl flex items-center justify-center">
-                <span className="material-symbols-outlined text-brand-primary text-2xl">dashboard</span>
-              </div>
-              종합 대시보드
-            </h2>
-            <p className="mt-2 text-base text-text-muted font-medium">통장 거래 내역을 바탕으로 수입과 지출을 한눈에 정리한 요약 화면입니다.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-            <div className="relative flex-1 sm:flex-none">
-              <select
-                value={selectedPeriod}
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="w-full sm:w-auto pl-4 pr-10 py-3 bg-white text-text-primary border-2 border-border-color rounded-xl text-base font-bold focus:ring-4 focus:ring-brand-primary/20 focus:border-brand-primary appearance-none cursor-pointer transition-all shadow-sm"
-              >
-                {periodOptions.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-text-muted">
-                <span className="material-symbols-outlined text-sm">expand_more</span>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowPaymentModal(true)}
-              disabled={isExporting}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-brand-primary hover:bg-brand-secondary text-white font-bold rounded-xl shadow-sm transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
+    <div className="space-y-8 max-w-7xl mx-auto">
+
+      {/* ── 헤더 + 기간 선택 ── */}
+      <div className="bg-white rounded-3xl border border-border-color shadow-sm p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+            <span className="material-symbols-outlined text-brand-primary">dashboard</span>
+            종합 대시보드
+          </h2>
+          <p className="text-sm text-text-muted mt-1 font-medium">
+            사업 손익 · 영업외 수지 · 현금 종합수지를 한눈에 파악합니다.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
+            <select
+              value={selectedPeriod}
+              onChange={e => setSelectedPeriod(e.target.value)}
+              className="w-full sm:w-auto pl-4 pr-10 py-2.5 bg-white text-text-primary border-2 border-border-color rounded-xl text-sm font-bold focus:ring-4 focus:ring-brand-primary/20 focus:border-brand-primary appearance-none cursor-pointer"
             >
-              {isExporting ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  PDF 생성 중...
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined text-lg">download</span>
-                  PDF 다운로드
-                </>
-              )}
-            </button>
+              {periodOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-text-muted">
+              <span className="material-symbols-outlined text-sm">expand_more</span>
+            </span>
           </div>
+          <button
+            onClick={() => setShowPaymentModal(true)}
+            disabled={isExporting}
+            className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary hover:bg-brand-secondary text-white font-bold rounded-xl shadow-sm transition-colors text-sm whitespace-nowrap disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-base">{isExporting ? 'hourglass_empty' : 'download'}</span>
+            {isExporting ? 'PDF 생성 중...' : 'PDF 다운로드'}
+          </button>
         </div>
       </div>
 
-      {/* PDF 캡처 영역 */}
-      <div ref={contentRef} className="space-y-10">
-        {/* KPI 카드 */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
-          <KPICard title="사업 매출" value={kpiData.operatingRevenue} formatAsCurrency={true} />
-          <KPICard title="사업 비용" value={kpiData.operatingExpense} formatAsCurrency={true} />
-          <KPICard title="사업 순수익" value={kpiData.operatingProfit} formatAsCurrency={true} trend={kpiData.operatingProfit} />
-          <KPICard title="순이익률" value={kpiData.profitRate} formatAsCurrency={false} />
-          <KPICard title="영업이익 누계" value={kpiData.operatingProfit + kpiData.nonOperatingBalance} formatAsCurrency={true} trend={kpiData.operatingProfit + kpiData.nonOperatingBalance} />
+      <div ref={contentRef} className="space-y-8">
+
+        {/* ── ① ② ③ 손익 3단계 요약 카드 ── */}
+        <div>
+          <p className="text-xs font-bold text-text-muted uppercase tracking-widest mb-3 px-1">
+            손익 구조 — {periodLabel}
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* ① 사업 손익 */}
+            <SummaryBlock
+              badge="① 사업 손익"
+              title="사업매출 - 사업비용"
+              subtitle="영업 수익에서 영업 비용을 제한 순손익"
+              left={{ label: '사업 매출', value: pl.bizRevenue, color: 'text-emerald-600' }}
+              right={{ label: '사업 비용', value: pl.bizExpense, color: 'text-red-600' }}
+              result={{ label: '사업 손익', value: pl.bizProfit }}
+              bgClass="bg-emerald-50 border-emerald-200"
+            />
+            {/* ② 영업외 수지 */}
+            <SummaryBlock
+              badge="② 영업외 수지"
+              title="영업외수익 - 영업외지출"
+              subtitle="정부지원·개인입금에서 개인사비·카드대금을 제함"
+              left={{ label: '영업외 수익', value: pl.nonOpIncome, color: 'text-teal-600' }}
+              right={{ label: '사업외 지출', value: pl.nonOpExpense, color: 'text-orange-600' }}
+              result={{ label: '영업외 수지', value: pl.nonOpBalance }}
+              bgClass="bg-teal-50 border-teal-200"
+            />
+            {/* ③ 현금 종합수지 */}
+            <div className={`rounded-2xl border p-5 flex flex-col gap-3 ${pl.cashTotal >= 0 ? 'bg-brand-primary/5 border-brand-primary/30' : 'bg-red-50 border-red-300'}`}>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black px-2 py-0.5 rounded-full bg-brand-primary text-white">③ 현금 종합수지</span>
+              </div>
+              <p className="text-xs text-text-muted font-medium">= ① 사업손익 + ② 영업외수지<br/>통장의 실질적인 현금 증감액</p>
+              <div className="flex items-end justify-between pt-1">
+                <div>
+                  <p className="text-xs text-text-muted font-bold">① {pl.bizProfit >= 0 ? '+' : ''}{fmtM(pl.bizProfit)}</p>
+                  <p className="text-xs text-text-muted font-bold">② {pl.nonOpBalance >= 0 ? '+' : ''}{fmtM(pl.nonOpBalance)}</p>
+                </div>
+                <p className={`text-3xl font-black ${pl.cashTotal >= 0 ? 'text-brand-primary' : 'text-red-600'}`}>
+                  {pl.cashTotal >= 0 ? '+' : ''}{fmtM(pl.cashTotal)}
+                </p>
+              </div>
+              {pl.bizRevenue > 0 && (
+                <p className="text-xs text-text-muted border-t border-border-color pt-2 font-medium">
+                  사업 순이익률: <strong className="text-brand-primary">{profitRate}%</strong>
+                </p>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* 경영 손익 분석표 */}
-        <div className="bg-white p-8 rounded-3xl shadow-sm border border-border-color">
-          <SectionTitle
-            title="경영 손익 분석표"
-            icon="📊"
-            desc="매출, 원가, 인건비 등 주요 항목별로 수입과 지출을 정리한 표입니다. 우리 사업의 이익 구조를 한눈에 파악할 수 있습니다."
-          />
+        {/* ── 경영 손익 분석표 (3단계 구조) ── */}
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-border-color">
+          <div className="mb-5">
+            <h3 className="text-xl font-bold text-text-primary flex items-center gap-2">
+              <span className="material-symbols-outlined text-brand-primary">table_chart</span>
+              경영 손익 분석표
+              <span className="ml-2 text-sm font-bold text-brand-primary bg-brand-primary/10 px-3 py-1 rounded-full">{periodLabel}</span>
+            </h3>
+            <p className="text-sm text-text-muted mt-1">
+              사장님 통장의 사업적 입출금과 개인·사업외 입출금을 구분하여 실질 손익을 계산합니다.
+            </p>
+          </div>
+
           <div className="overflow-x-auto rounded-xl border border-border-color">
-            <table className="w-full text-base">
+            <table className="w-full text-sm">
               <thead className="bg-surface-subtle">
                 <tr className="border-b-2 border-border-color">
-                  <th className="py-4 px-4 text-left text-text-muted font-bold w-1/2">항목 / 계정명</th>
-                  <th className="py-4 px-4 text-right text-text-muted font-bold w-1/4">금액</th>
-                  <th className="py-4 px-4 text-right text-text-muted font-bold w-1/4">매출 대비 비중</th>
+                  <th className="py-3 px-4 text-left text-text-muted font-bold w-1/2">항목 / 계정명</th>
+                  <th className="py-3 px-4 text-right text-text-muted font-bold w-1/4">금액</th>
+                  <th className="py-3 px-4 text-right text-text-muted font-bold w-1/4">매출 대비</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-color/50">
-                <PlSectionHeader label="[ 사 업 매 출 ]" />
-                <tr><td colSpan={3} className="py-1 px-3 text-xs font-semibold text-text-muted">▶ 영업 수익 (사업 매출)</td></tr>
-                {plData.incomeDetail.map(a => (
-                  <PlRow key={a.name} label={a.name} amount={a.amount} total={plData.operatingRevenue} indent />
-                ))}
-                {plData.incomeDetail.length === 0 && (
-                  <tr><td colSpan={3} className="py-3 px-10 text-text-muted text-sm italic">분류된 매출 항목이 없습니다.</td></tr>
+              <tbody className="divide-y divide-border-color/30">
+
+                {/* ══ ① 사업 손익 섹션 ══ */}
+                <PlSectionHead>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="bg-emerald-500 text-white text-xs font-black px-2 py-0.5 rounded-full">①</span>
+                    사업 손익 = 사업매출 - 사업비용
+                  </span>
+                </PlSectionHead>
+
+                {/* 사업 매출 */}
+                <tr className="bg-emerald-50/40">
+                  <td colSpan={3} className="py-2 px-4 text-xs font-bold text-emerald-700 uppercase tracking-wider">▶ 사업 매출 (영업 수익)</td>
+                </tr>
+                {pl.incomeDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
+                {pl.incomeDetail.length === 0 && (
+                  <tr><td colSpan={3} className="py-3 pl-10 text-text-muted italic text-sm">분류된 매출 항목이 없습니다.</td></tr>
                 )}
-                <PlSubtotal label="합      계" amount={plData.operatingRevenue} total={plData.operatingRevenue} />
+                <PlSubtotal label="사업 매출 합계" amount={pl.bizRevenue} base={pl.bizRevenue} />
 
-                <PlSectionHeader label="[ 사 업 비 용 ]" />
+                {/* 사업 비용 */}
+                <tr className="bg-red-50/40">
+                  <td colSpan={3} className="py-2 px-4 text-xs font-bold text-red-700 uppercase tracking-wider">▶ 사업 비용 (영업 비용)</td>
+                </tr>
 
-                {plData.laborDetail.length > 0 && (<>
-                  <tr><td colSpan={3} className="py-1 px-3 text-xs font-semibold text-text-muted">인건비</td></tr>
-                  {plData.laborDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} total={plData.operatingRevenue} indent />)}
-                  <PlSubtotal label="소  계" amount={plData.laborCost} total={plData.operatingRevenue} />
+                {pl.laborDetail.length > 0 && (<>
+                  <tr><td colSpan={3} className="py-1.5 px-4 text-xs font-semibold text-text-muted">인건비</td></tr>
+                  {pl.laborDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
+                  <PlSubtotal label="인건비 소계" amount={pl.laborCost} base={pl.bizRevenue} />
                 </>)}
 
-                {plData.materialDetail.length > 0 && (<>
-                  <tr><td colSpan={3} className="py-1 px-3 text-xs font-semibold text-text-muted">재료비</td></tr>
-                  {plData.materialDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} total={plData.operatingRevenue} indent />)}
-                  <PlSubtotal label="소  계" amount={plData.materialCost} total={plData.operatingRevenue} />
+                {pl.materialDetail.length > 0 && (<>
+                  <tr><td colSpan={3} className="py-1.5 px-4 text-xs font-semibold text-text-muted">재료비</td></tr>
+                  {pl.materialDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
+                  <PlSubtotal label="재료비 소계" amount={pl.materialCost} base={pl.bizRevenue} />
                 </>)}
 
-                {plData.fixedDetail.length > 0 && (<>
-                  <tr><td colSpan={3} className="py-1 px-3 text-xs font-semibold text-text-muted">고정비</td></tr>
-                  {plData.fixedDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} total={plData.operatingRevenue} indent />)}
-                  <PlSubtotal label="소  계" amount={plData.fixedCost} total={plData.operatingRevenue} />
+                {pl.fixedDetail.length > 0 && (<>
+                  <tr><td colSpan={3} className="py-1.5 px-4 text-xs font-semibold text-text-muted">고정비</td></tr>
+                  {pl.fixedDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
+                  <PlSubtotal label="고정비 소계" amount={pl.fixedCost} base={pl.bizRevenue} />
                 </>)}
 
-                {plData.variableDetail.length > 0 && (<>
-                  <tr><td colSpan={3} className="py-1 px-3 text-xs font-semibold text-text-muted">변동비</td></tr>
-                  {plData.variableDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} total={plData.operatingRevenue} indent />)}
-                  <PlSubtotal label="소  계" amount={plData.variableCost} total={plData.operatingRevenue} />
+                {pl.variableDetail.length > 0 && (<>
+                  <tr><td colSpan={3} className="py-1.5 px-4 text-xs font-semibold text-text-muted">변동비</td></tr>
+                  {pl.variableDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
+                  <PlSubtotal label="변동비 소계" amount={pl.variableCost} base={pl.bizRevenue} />
                 </>)}
 
-                {(plData.laborDetail.length + plData.materialDetail.length + plData.fixedDetail.length + plData.variableDetail.length) === 0 && (
-                  <tr><td colSpan={3} className="py-3 px-10 text-text-muted text-sm italic">분류된 비용 항목이 없습니다.</td></tr>
+                {(pl.laborDetail.length + pl.materialDetail.length + pl.fixedDetail.length + pl.variableDetail.length) === 0 && (
+                  <tr><td colSpan={3} className="py-3 pl-10 text-text-muted italic text-sm">분류된 비용 항목이 없습니다.</td></tr>
                 )}
+                <PlSubtotal label="사업 비용 합계" amount={pl.bizExpense} base={pl.bizRevenue} />
 
-                <PlSubtotal label="합      계" amount={plData.operatingExpense} total={plData.operatingRevenue} />
-                <PlTotalRow label="사업 순손익 (매출 - 비용)" amount={plData.operatingProfit} total={plData.operatingRevenue} star />
+                {/* ① 사업 손익 결과 */}
+                <PlKeyRow
+                  badge="① 사업 손익"
+                  label="사업매출 - 사업비용"
+                  desc={`(순이익률 ${profitRate}%)`}
+                  amount={pl.bizProfit}
+                  base={pl.bizRevenue}
+                />
 
-                <PlSectionHeader label="[ 영업외 수익 ]" />
-                {plData.nonOpIncomeDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} total={plData.operatingRevenue} indent />)}
-                {plData.nonOpIncomeDetail.length === 0 && (
-                  <tr><td colSpan={3} className="py-3 px-10 text-text-muted text-sm italic">해당 항목 없음</td></tr>
+                {/* ══ ② 영업외 수지 섹션 ══ */}
+                <PlSectionHead>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="bg-teal-500 text-white text-xs font-black px-2 py-0.5 rounded-full">②</span>
+                    영업외 수지 = 영업외수익 - 사업외지출
+                  </span>
+                </PlSectionHead>
+
+                <tr className="bg-teal-50/40">
+                  <td colSpan={3} className="py-2 px-4 text-xs font-bold text-teal-700 uppercase tracking-wider">▶ 영업외 수익 (정부지원금, 외부입금 등)</td>
+                </tr>
+                {pl.nonOpIncDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
+                {pl.nonOpIncDetail.length === 0 && (
+                  <tr><td colSpan={3} className="py-3 pl-10 text-text-muted italic text-sm">해당 항목 없음</td></tr>
                 )}
-                <PlSubtotal label="합   계" amount={plData.nonOperatingIncome} total={plData.operatingRevenue} />
+                <PlSubtotal label="영업외 수익 합계" amount={pl.nonOpIncome} base={pl.bizRevenue} />
 
-                <PlSectionHeader label="[ 사업외 지출 ]" />
-                {plData.nonOpExpenseDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} total={plData.operatingRevenue} indent />)}
-                {plData.nonOpExpenseDetail.length === 0 && (
-                  <tr><td colSpan={3} className="py-3 px-10 text-text-muted text-sm italic">해당 항목 없음</td></tr>
+                <tr className="bg-orange-50/40">
+                  <td colSpan={3} className="py-2 px-4 text-xs font-bold text-orange-700 uppercase tracking-wider">▶ 사업외 지출 (개인사비, 카드대금, 개인출금 등)</td>
+                </tr>
+                {pl.nonOpExpDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
+                {pl.nonOpExpDetail.length === 0 && (
+                  <tr><td colSpan={3} className="py-3 pl-10 text-text-muted italic text-sm">해당 항목 없음</td></tr>
                 )}
-                <PlSubtotal label="합   계" amount={plData.nonOperatingExpense} total={plData.operatingRevenue} />
+                <PlSubtotal label="사업외 지출 합계" amount={pl.nonOpExpense} base={pl.bizRevenue} />
 
-                <PlTotalRow label="영업외 수지" amount={plData.nonOperatingBalance} total={plData.operatingRevenue} star />
+                {/* ② 영업외 수지 결과 */}
+                <PlKeyRow
+                  badge="② 영업외 수지"
+                  label="영업외수익 - 사업외지출"
+                  amount={pl.nonOpBalance}
+                  base={pl.bizRevenue}
+                />
+
+                {/* ══ ③ 현금 종합수지 ══ */}
+                <PlFinalRow amount={pl.cashTotal} base={pl.bizRevenue} />
+
               </tbody>
             </table>
           </div>
-        </div>
 
-        {/* 월별 차트 */}
-        <div className="bg-white p-8 rounded-3xl shadow-sm border border-border-color">
-          <SectionTitle
-            title="월별 재무 성과 분석"
-            icon="📈"
-            desc="월별 수입(파란색)과 지출(빨간색) 추이를 막대 그래프로 보여줍니다. 어느 달에 돈이 많이 들어오고 나갔는지 비교해 보세요."
-          />
-          <div className="mt-6">
-            <IncomeExpenseChart data={monthlyChartData} />
+          {/* 하단 설명 */}
+          <div className="mt-4 p-4 bg-surface-subtle rounded-xl border border-border-color text-xs text-text-muted space-y-1">
+            <p><strong>① 사업 손익</strong>: 실제 사업 운영에서 발생한 순이익 (영업 수익 - 영업 비용)</p>
+            <p><strong>② 영업외 수지</strong>: 사업과 무관한 수입/지출 (정부지원금, 개인사비, 카드대금 등)</p>
+            <p><strong>③ 현금 종합수지</strong>: 통장의 실질적인 전체 현금 증감 (① + ②). 사업 손익과 개인 지출이 섞인 개인사업자 통장의 실질 현금 흐름입니다.</p>
           </div>
         </div>
 
-        {/* 카테고리 파이차트 */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-          <div className="bg-white p-8 rounded-3xl shadow-sm border border-border-color">
-            <SectionTitle title="영업 수익 구성" icon="💰" desc="어디서 돈이 들어왔는지 비율로 보여줍니다." />
-            <div className="mt-6">
-              <CategoryPieChart data={filteredTransactions} type="operating_income" />
-            </div>
+        {/* ── 월별 추이 차트 ── */}
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-border-color">
+          <h3 className="text-xl font-bold text-text-primary flex items-center gap-2 mb-1">
+            <span className="material-symbols-outlined text-brand-primary">bar_chart</span>
+            월별 재무 성과 추이
+          </h3>
+          <p className="text-sm text-text-muted mb-5">사업매출·사업비용·사업손익·영업외수지의 월별 변화를 확인합니다.</p>
+          <IncomeExpenseChart data={monthlyData} />
+        </div>
+
+        {/* ── 수익/비용 파이차트 ── */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-border-color">
+            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2 mb-1">
+              <span className="material-symbols-outlined text-emerald-500">pie_chart</span>
+              사업 매출 구성 비율
+            </h3>
+            <p className="text-sm text-text-muted mb-4">어느 채널에서 매출이 발생했는지 비중을 확인합니다.</p>
+            <CategoryPieChart data={filteredTxs} type="operating_income" />
           </div>
-          <div className="bg-white p-8 rounded-3xl shadow-sm border border-border-color">
-            <SectionTitle title="영업 비용 구성" icon="💸" desc="돈이 어디에 가장 많이 나갔는지 비율로 보여줍니다." />
-            <div className="mt-6">
-              <CategoryPieChart data={filteredTransactions} type="operating_expense" />
-            </div>
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-border-color">
+            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2 mb-1">
+              <span className="material-symbols-outlined text-red-500">pie_chart</span>
+              사업 비용 구성 비율
+            </h3>
+            <p className="text-sm text-text-muted mb-4">어느 비용 항목에 가장 많이 지출되었는지 확인합니다.</p>
+            <CategoryPieChart data={filteredTxs} type="operating_expense" />
           </div>
         </div>
 
-        {/* Top 5 추이 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white p-8 rounded-3xl shadow-sm border border-border-color">
-            <SectionTitle title="상위 5개 수입 항목 추이" icon="🏆" desc="가장 큰 수입원 5개의 월별 변화를 보여줍니다." />
-            <div className="mt-6">
-              <TopCategoriesChart data={filteredTransactions} type="operating_income" />
-            </div>
+        {/* ── 상위 항목 추이 ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-border-color">
+            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2 mb-1">
+              <span className="material-symbols-outlined text-emerald-500">trending_up</span>
+              주요 수입 항목 월별 추이
+            </h3>
+            <p className="text-sm text-text-muted mb-4">상위 5개 매출 항목의 월별 변화 추이입니다.</p>
+            <TopCategoriesChart data={filteredTxs} type="operating_income" />
           </div>
-          <div className="bg-white p-8 rounded-3xl shadow-sm border border-border-color">
-            <SectionTitle title="상위 5개 비용 항목 추이" icon="📉" desc="가장 큰 지출 항목 5개의 월별 변화를 보여줍니다." />
-            <div className="mt-6">
-              <TopCategoriesChart data={filteredTransactions} type="operating_expense" />
-            </div>
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-border-color">
+            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2 mb-1">
+              <span className="material-symbols-outlined text-red-500">trending_down</span>
+              주요 비용 항목 월별 추이
+            </h3>
+            <p className="text-sm text-text-muted mb-4">상위 5개 지출 항목의 월별 변화 추이입니다.</p>
+            <TopCategoriesChart data={filteredTxs} type="operating_expense" />
           </div>
         </div>
+
       </div>
     </div>
 
