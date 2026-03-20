@@ -156,7 +156,10 @@ const ExitView: React.FC<Props> = ({ businessInfo, transactions = [], pendingPdf
 
   useEffect(() => {
     if (pendingPdfDownload?.type === 'exit') {
-      doExport().then(() => onPdfDownloadConsumed?.());
+      const timer = setTimeout(() => {
+        doExport().then(() => onPdfDownloadConsumed?.());
+      }, 500);
+      return () => clearTimeout(timer);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPdfDownload]);

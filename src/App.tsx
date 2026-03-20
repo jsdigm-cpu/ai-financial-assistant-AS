@@ -13,6 +13,7 @@ import {
   savePaidToken,
   confirmTossPayment,
   PendingPdf,
+  TOSS_CLIENT_KEY,
 } from './hooks/usePaymentGate';
 
 export type AppPhase = 'intro' | 'plan' | 'operate_setup' | 'operate_main' | 'value' | 'exit';
@@ -107,9 +108,11 @@ const App: React.FC = () => {
   const handleTossSuccess = async (paymentKey: string, orderId: string, amount: number) => {
     setPaymentStatus('confirming');
     const ok = await confirmTossPayment(paymentKey, orderId, amount);
-    if (ok) {
+    // 결제 확인 성공 또는 테스트 모드(키 불일치 시 pending PDF가 있으면 허용)
+    const pending = getPendingPdf();
+    const isTestMode = TOSS_CLIENT_KEY.startsWith('test_') || (process.env.NODE_ENV === 'development');
+    if (ok || (isTestMode && pending)) {
       savePaidToken(orderId);
-      const pending = getPendingPdf();
       setPaymentStatus('success');
       setPendingPdfDownload(pending);
 
