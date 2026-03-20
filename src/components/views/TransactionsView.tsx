@@ -10,10 +10,8 @@ interface Props {
   onUpdateTransaction: (updatedTx: Transaction) => void;
 }
 
-const fmt = (v: number) => {
-  if (Math.abs(v) >= 10000) return (v / 10000).toFixed(0) + '만원';
-  return v.toLocaleString('ko-KR') + '원';
-};
+// 항상 세자리마다 쉼표 표시 (자릿수 혼동 방지)
+const fmt = (v: number) => v.toLocaleString('ko-KR') + '원';
 
 const TransactionsView: React.FC<Props> = ({ transactions, businessInfo, categories, onUpdateTransaction }) => {
   const [searchTerm, setSearchTerm] = useState('');

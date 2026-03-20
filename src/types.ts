@@ -9,12 +9,15 @@ export interface Transaction {
   category: string; // 3단계 계정명 (예: '카드매출', '원재료(식자재)')
 }
 
+export type BusinessScale = '소규모' | '중규모' | '대규모';
+
 export interface BusinessInfo {
   name: string;
   owner: string;
   type: string;
   items: string;
   accountType?: string;
+  businessScale?: BusinessScale; // 소규모(월매출 3천만↓) | 중규모(3천만~1억) | 대규모(1억↑)
   address?: string;
   rawMaterialSuppliers?: string;
   subsidiaryMaterialSuppliers?: string;

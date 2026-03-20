@@ -56,16 +56,40 @@ export const categorizeTransactions = async (
   for (let i = 0; i < transactions.length; i += batchSize) {
     const batch = transactions.slice(i, i + batchSize);
     const prompt = `
-      다음은 소상공인 사업자의 은행 거래 내역입니다. 
-      사업자 정보: ${JSON.stringify(businessInfo)}
-      가능한 카테고리 목록: ${categories.map(c => c.name).join(', ')}
-      
-      각 거래 내역의 'description'을 보고 가장 적절한 카테고리를 선택해주세요.
-      거래 내역:
-      ${batch.map(t => `- ID: ${t.id}, 내용: ${t.description}, 출금: ${t.debit}, 입금: ${t.credit}`).join('\n')}
-      
-      응답은 반드시 다음 JSON 형식의 배열로만 해주세요:
-      [{"id": "거래ID", "category": "카테고리명"}]
+당신은 소상공인 사업장의 통장 거래를 분류하는 전문가입니다.
+아래 사업장 정보와 카테고리 목록을 참고하여 각 거래를 가장 적절한 카테고리로 분류해주세요.
+
+[사업장 정보]
+업종: ${businessInfo.type}
+취급품목: ${businessInfo.items}
+규모: ${businessInfo.businessScale || '소규모'}
+배달플랫폼: ${businessInfo.onlinePlatforms || '없음'}
+원재료 매입처: ${businessInfo.rawMaterialSuppliers || '미상'}
+
+[카테고리 목록]
+${categories.map(c => `${c.name} (${c.level2}${c.costGroup ? ', ' + c.costGroup : ''})`).join(', ')}
+
+[분류 원칙]
+- 입금(credit>0)은 반드시 수입 카테고리(영업 수익 또는 영업외 수익)로
+- 출금(debit>0)은 반드시 지출 카테고리(영업 비용 또는 사업외 지출)로
+- 배달의민족/쿠팡이츠/요기요 입금 → 배달매출, 출금 → 배달수수료
+- 카드매출/카드정산/VAN → 카드매출
+- 제로페이/지역사랑상품권 → 지역화폐
+- 네이버페이/카카오페이/토스 → 간편결제
+- 스마트스토어/쿠팡판매/11번가 → 입점몰매출
+- 급여이체/알바비 → 인건비 카테고리
+- 대출실행/한도대출 입금 → 차입금 (영업외 수익)
+- 원금상환/대출이자 출금 → 대출원금상환 또는 이자비용 (사업외 지출)
+- 카드대금 출금 → 신용카드대금 (사업외 지출)
+- 병원/약국 출금 → 병원·약국비 (사업외 지출)
+- 주유/하이패스 출금 → 유류비·교통비 (사업외 지출)
+- 원재료 매입처와 유사한 거래처 → 재료비 카테고리
+- 모르겠으면 입금은 기타매출, 출금은 기타사업비
+
+[거래 내역]
+${batch.map(t => `ID:${t.id} | ${t.description} | 출금:${t.debit.toLocaleString()} | 입금:${t.credit.toLocaleString()}`).join('\n')}
+
+반드시 JSON 배열 형식으로만 응답: [{"id": "거래ID", "category": "카테고리명"}]
     `;
 
     try {
@@ -155,18 +179,71 @@ export const generateInitialCategorizationRules = async (
  */
 export const generateInitialCategories = async (businessInfo: BusinessInfo): Promise<Category[]> => {
   const ai = getAI();
+
+  const scaleContext = businessInfo.businessScale === '대규모'
+    ? '월매출 1억원 이상의 비교적 큰 규모 (직원 10명 이상, 세무사 관리, 복잡한 비용 구조)'
+    : businessInfo.businessScale === '중규모'
+    ? '월매출 3천만~1억원 규모 (직원 4~10명, 배달+홀 병행, 다양한 매입처)'
+    : '월매출 3천만원 이하의 소규모 (1~3인 운영, 간단한 비용 구조, 사장님이 직접 관리)';
+
   const prompt = `
-    다음 사업자 정보를 바탕으로, 이 사업자에게 필요한 표준 재무 카테고리(계정과목) 목록을 생성해주세요.
-    사업자 정보: ${JSON.stringify(businessInfo)}
-    
-    각 카테고리는 다음 정보를 포함해야 합니다:
-    - name: 계정명 (예: '카드매출', '임차료', '원재료비')
-    - level1: '수입' 또는 '지출'
-    - level2: '영업 수익', '영업외 수익', '영업 비용', '사업외 지출' 중 하나
-    - costGroup: '인건비', '재료비', '고정비', '변동비' 중 하나 (영업 비용인 경우만, 아니면 null)
-    - type: 'operating_income', 'non_operating_income', 'operating_expense', 'non_operating_expense' 중 하나
-    
-    응답은 반드시 JSON 배열 형식으로 해주세요.
+당신은 소상공인 사업장을 수년간 운영해온 경험 많은 사장님의 관점에서 재무 카테고리를 만들어주는 전문가입니다.
+회계사가 아닌 사장님 눈높이에서 "내 돈이 어디서 들어오고 어디로 나가는지" 한눈에 파악할 수 있는 현실적인 카테고리를 만들어주세요.
+
+[사업장 정보]
+- 업종: ${businessInfo.type}
+- 주요 취급 품목/서비스: ${businessInfo.items}
+- 사업장 규모: ${scaleContext}
+- 온라인/배달 플랫폼: ${businessInfo.onlinePlatforms || '없음'}
+- 원재료 매입처: ${businessInfo.rawMaterialSuppliers || '미상'}
+- 부재료 매입처: ${businessInfo.subsidiaryMaterialSuppliers || '미상'}
+- 기타 수입원: ${businessInfo.otherRevenueSources || '없음'}
+
+[카테고리 생성 원칙]
+
+★ 매출(영업 수익)은 "통장에 돈이 들어오는 방식" 기준으로 나누세요
+   - 카드매출: POS 카드단말기 → VAN사 정산 입금
+   - 배달매출: 배달앱(배달의민족·쿠팡이츠·요기요) 정산 입금
+   - 간편결제: 네이버페이·카카오페이·토스 (POS에 안 잡히고 직접 통장 입금)
+   - 지역화폐: 제로페이·지역사랑상품권 (POS에서 현금으로 보이지만 별도 정산)
+   - 현금매출: 손님이 직접 낸 현금 (POS 현금결제)
+   - 입점몰매출: 쿠팡·스마트스토어 등 온라인 플랫폼 대행 판매 정산 (해당 업종만)
+   - 세금계산서매출: B2B 거래처 계좌이체 (세금계산서 발행분, 해당 업종만)
+   - 이 업종·규모에 실제로 해당하는 매출 유형만 포함하세요
+
+★ 영업외 수익(기타 입금)
+   - 정부지원금: 소상공인 지원금, 재난지원금, 보조금
+   - 차입금: 대출 실행, 지인 차입 (수익이 아니지만 통장에 들어오는 돈 - 별도 표시됨)
+   - 부업·사이드수입: 주업 외 다른 수입
+   - 보험금·환급금: 보험사 지급금, 세금환급, 보증금 반환
+   - 이자수익: 예금·적금 이자
+
+★ 지출(영업 비용)은 사장님이 "이번 달 여기서 많이 썼네" 하고 바로 알 수 있는 항목으로
+   - 인건비: 규모에 맞게 (소규모는 '알바비' 하나면 충분, 대규모는 직종별 구분)
+   - 재료비: 이 업종에서 사용하는 주요 재료 종류별로 구체적으로
+   - 고정비: 매달 꼬박꼬박 나가는 돈 (임대료, 전기, 가스, 통신, 보험 등)
+   - 변동비: 매출에 따라 오르내리는 비용 (배달수수료, 광고비, 포장재 등)
+
+★ 사업외 지출 — 통장에서 나가지만 사업비가 아닌 것 (반드시 포함)
+   부채/금융: 대출원금상환, 이자비용, 신용카드대금
+   개인생활: 병원·약국비, 개인식비, 개인통신·보험, 유류비·교통비
+   이전/이체: 가족용돈·생활비, 개인저축·투자
+   기타: 기타출금 (미분류 기본값)
+
+★ 카테고리 개수: 너무 세분화하지 말고 실제로 구분 가능한 수준으로
+   - 소규모: 전체 18~22개 내외
+   - 중규모: 전체 22~30개 내외
+   - 대규모: 전체 30~38개 내외
+★ 이 업종(${businessInfo.type})에서 자주 쓰는 비용 항목은 반드시 포함하세요
+
+각 카테고리는 다음 필드를 포함해야 합니다:
+- name: 계정명 (사장님이 바로 이해할 수 있는 직관적인 이름, 10자 이내)
+- level1: '수입' 또는 '지출'
+- level2: '영업 수익', '영업외 수익', '영업 비용', '사업외 지출' 중 하나
+- costGroup: '인건비', '재료비', '고정비', '변동비' 중 하나 (영업 비용만, 나머지는 null)
+- type: 'operating_income', 'non_operating_income', 'operating_expense', 'non_operating_expense' 중 하나
+
+반드시 JSON 배열 형식으로만 응답하세요.
   `;
 
   try {
