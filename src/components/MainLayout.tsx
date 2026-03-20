@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { ProcessedData, Transaction, BusinessInfo, Category, CategoryRule, UploadedFileInfo, AIReport, DeepDiveAIReport, LocationAnalysisReport } from '../types';
-import { DEFAULT_CATEGORIES, DEFAULT_CATEGORY_INCOME, DEFAULT_CATEGORY_EXPENSE, normalizeCategoryName, CATEGORY_MAP, getDefaultCategoriesByAccountType } from '../constants';
+import { DEFAULT_CATEGORIES, DEFAULT_CATEGORY_INCOME, DEFAULT_CATEGORY_EXPENSE, normalizeCategoryName, CATEGORY_MAP, getDefaultCategoriesByAccountType, DEFAULT_KEYWORD_RULES } from '../constants';
 import { categorizeTransactions, generateInitialCategorizationRules, generateInitialCategories, generateFinancialReport, generateDeepDiveReport, generateLocationAnalysisReport } from '../services/geminiService';
 import { parseFile } from '../services/parser';
 import DashboardView from './views/DashboardView';
@@ -205,7 +205,9 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
             console.error("Setup failed:", error);
             const fallbackCategories = getDefaultCategoriesByAccountType(acctType || '개인사업자');
             setCategories(fallbackCategories);
-            await runClassification(initialData.transactions, [], fallbackCategories, businessInfo);
+            // AI 실패 시 기본 키워드 규칙으로 분류
+            setCategoryRules(DEFAULT_KEYWORD_RULES);
+            await runClassification(initialData.transactions, DEFAULT_KEYWORD_RULES, fallbackCategories, businessInfo);
             setIsInitialLoading(false);
         }
     };

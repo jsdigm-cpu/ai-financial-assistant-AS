@@ -214,9 +214,12 @@ export function getDefaultCategoriesByAccountType(accountType?: string): Categor
   }
 }
 
-// 카테고리 이름으로 Category 객체를 찾는 맵
+// 카테고리 이름으로 Category 객체를 찾는 맵 (모든 프리셋 포함)
 export const CATEGORY_MAP: Record<string, Category> = {};
-DEFAULT_CATEGORIES.forEach(c => { CATEGORY_MAP[c.name] = c; });
+// 개인사업자, 개인통장, 법인사업자 카테고리 모두 맵에 등록
+[...DEFAULT_CATEGORIES, ...PERSONAL_CATEGORIES, ...CORPORATION_CATEGORIES].forEach(c => {
+  CATEGORY_MAP[c.name] = c;
+});
 
 // ============================================================
 // AI 분류 결과 정규화: AI가 반환한 이름을 표준 계정명으로 매칭
@@ -515,3 +518,54 @@ export const BUSINESS_PRESETS: Partial<Record<BusinessType, BusinessPreset>> = {
     salaryInfo: '',
   },
 };
+
+// ============================================================
+// 기본 키워드 분류 규칙 (AI 없이도 기본 분류 가능)
+// ============================================================
+import { CategoryRule } from './types';
+
+export const DEFAULT_KEYWORD_RULES: CategoryRule[] = [
+  // === 수입 ===
+  { keyword: '카드매출', category: '카드매출', source: 'ai' },
+  { keyword: '신용카드매출', category: '카드매출', source: 'ai' },
+  { keyword: '배달의민족', category: '배달매출', source: 'ai' },
+  { keyword: '쿠팡이츠', category: '배달매출', source: 'ai' },
+  { keyword: '요기요', category: '배달매출', source: 'ai' },
+  { keyword: '지역화폐', category: '지역화폐', source: 'ai' },
+  { keyword: '제로페이', category: '지역화폐', source: 'ai' },
+  { keyword: '카카오페이', category: '간편결제', source: 'ai' },
+  { keyword: '네이버페이', category: '간편결제', source: 'ai' },
+  { keyword: '토스', category: '간편결제', source: 'ai' },
+  { keyword: '정부지원', category: '정부지원금', source: 'ai' },
+  { keyword: '소상공인', category: '정부지원금', source: 'ai' },
+  { keyword: '이자', category: '영업외수익', source: 'ai' },
+  // === 인건비 ===
+  { keyword: '급여', category: '인건비(정규)', source: 'ai' },
+  { keyword: '알바', category: '인건비(알바)', source: 'ai' },
+  { keyword: '아르바이트', category: '인건비(알바)', source: 'ai' },
+  // === 재료비 ===
+  { keyword: '식자재', category: '원재료(식자재)', source: 'ai' },
+  { keyword: '식품', category: '원재료(식자재)', source: 'ai' },
+  { keyword: '마켓', category: '원재료(식자재)', source: 'ai' },
+  // === 고정비 ===
+  { keyword: '임대료', category: '임대료·관리비', source: 'ai' },
+  { keyword: '관리비', category: '임대료·관리비', source: 'ai' },
+  { keyword: '도시가스', category: '도시가스비', source: 'ai' },
+  { keyword: '가스요금', category: '도시가스비', source: 'ai' },
+  { keyword: '전기요금', category: '전기요금', source: 'ai' },
+  { keyword: '한국전력', category: '전기요금', source: 'ai' },
+  { keyword: 'KT', category: '통신·IT비', source: 'ai' },
+  { keyword: 'SKT', category: '통신·IT비', source: 'ai' },
+  { keyword: 'LGU', category: '통신·IT비', source: 'ai' },
+  { keyword: '통신', category: '통신·IT비', source: 'ai' },
+  { keyword: '보험료', category: '보험료', source: 'ai' },
+  { keyword: '보험', category: '보험료', source: 'ai' },
+  // === 변동비 ===
+  { keyword: '수수료', category: '배달수수료', source: 'ai' },
+  { keyword: '광고', category: '광고비', source: 'ai' },
+  { keyword: '세금', category: '세금·공과금', source: 'ai' },
+  { keyword: '부가세', category: '세금·공과금', source: 'ai' },
+  // === 사업외 지출 ===
+  { keyword: '카드대금', category: '신용카드대금', source: 'ai' },
+  { keyword: '신용카드', category: '신용카드대금', source: 'ai' },
+];
