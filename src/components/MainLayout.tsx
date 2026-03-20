@@ -501,7 +501,7 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
       case 'transactions':
         return <TransactionsView {...commonProps} onUpdateTransaction={handleUpdateTransaction}/>;
       case 'data-sources':
-        return <DataSourcesView businessInfo={businessInfo} uploadedFiles={uploadedFiles} />;
+        return <DataSourcesView businessInfo={businessInfo} uploadedFiles={uploadedFiles} transactions={transactions} categories={categories} />;
       case 'deep-dive':
         return <DeepDiveView
           {...commonProps}
@@ -521,9 +521,9 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
                   onGenerateLocationReport={handleGenerateLocationReport}
                 />;
       case 'settings':
-        return <CategoryManagementView 
+        return <CategoryManagementView
                   transactions={transactions}
-                  categories={categories} 
+                  categories={categories}
                   rules={categoryRules}
                   onAddCategory={handleAddCategory}
                   onDeleteCategory={handleDeleteCategory}
@@ -531,6 +531,7 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
                   onMoveCategory={handleMoveCategory}
                   onAddRule={handleAddRule}
                   onDeleteRule={handleDeleteRule}
+                  onUpdateTransaction={handleUpdateTransaction}
                 />;
       default:
         return <DashboardView {...commonProps} />;
