@@ -345,9 +345,9 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
           <KPICard title="사업 매출" value={kpiData.operatingRevenue} formatAsCurrency={true} />
           <KPICard title="사업 비용" value={kpiData.operatingExpense} formatAsCurrency={true} />
-          <KPICard title="★ 사업 순손익" value={kpiData.operatingProfit} formatAsCurrency={true} trend={kpiData.operatingProfit} />
+          <KPICard title="사업 순수익" value={kpiData.operatingProfit} formatAsCurrency={true} trend={kpiData.operatingProfit} />
           <KPICard title="순이익률" value={kpiData.profitRate} formatAsCurrency={false} />
-          <KPICard title="영업외 수지" value={kpiData.nonOperatingBalance} formatAsCurrency={true} />
+          <KPICard title="영업이익 누계" value={kpiData.operatingProfit + kpiData.nonOperatingBalance} formatAsCurrency={true} trend={kpiData.operatingProfit + kpiData.nonOperatingBalance} />
         </div>
 
         {/* 경영 손익 분석표 */}
@@ -447,13 +447,13 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-border-color">
             <SectionTitle title="영업 수익 구성" icon="💰" desc="어디서 돈이 들어왔는지 비율로 보여줍니다." />
             <div className="mt-6">
-              <CategoryPieChart data={operatingTransactions} type="operating_income" categories={categories} />
+              <CategoryPieChart data={filteredTransactions} type="operating_income" />
             </div>
           </div>
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-border-color">
             <SectionTitle title="영업 비용 구성" icon="💸" desc="돈이 어디에 가장 많이 나갔는지 비율로 보여줍니다." />
             <div className="mt-6">
-              <CategoryPieChart data={operatingTransactions} type="operating_expense" categories={categories} />
+              <CategoryPieChart data={filteredTransactions} type="operating_expense" />
             </div>
           </div>
         </div>
@@ -463,13 +463,13 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-border-color">
             <SectionTitle title="상위 5개 수입 항목 추이" icon="🏆" desc="가장 큰 수입원 5개의 월별 변화를 보여줍니다." />
             <div className="mt-6">
-              <TopCategoriesChart data={operatingTransactions} type="operating_income" />
+              <TopCategoriesChart data={filteredTransactions} type="operating_income" />
             </div>
           </div>
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-border-color">
             <SectionTitle title="상위 5개 비용 항목 추이" icon="📉" desc="가장 큰 지출 항목 5개의 월별 변화를 보여줍니다." />
             <div className="mt-6">
-              <TopCategoriesChart data={operatingTransactions} type="operating_expense" />
+              <TopCategoriesChart data={filteredTransactions} type="operating_expense" />
             </div>
           </div>
         </div>
