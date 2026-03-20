@@ -22,7 +22,7 @@ const TransactionsView: React.FC<Props> = ({ transactions, businessInfo, categor
   const [txType, setTxType] = useState<'all' | 'income' | 'expense'>('all');
 
   const unclassifiedCount = useMemo(() =>
-    transactions.filter(t => t.category === '기타매출' || t.category === '기타사업비').length,
+    transactions.filter(t => t.category === '기타매출' || t.category === '기타사업비' || t.category === '미분류').length,
     [transactions]
   );
 
@@ -33,7 +33,7 @@ const TransactionsView: React.FC<Props> = ({ transactions, businessInfo, categor
     return transactions.filter(tx => {
       if (searchTerm && !tx.description.toLowerCase().includes(searchTerm.toLowerCase())) return false;
       if (selectedCategory !== '전체' && tx.category !== selectedCategory) return false;
-      if (showUnclassifiedOnly && tx.category !== '기타매출' && tx.category !== '기타사업비') return false;
+      if (showUnclassifiedOnly && tx.category !== '기타매출' && tx.category !== '기타사업비' && tx.category !== '미분류') return false;
       if (txType === 'income' && tx.credit <= 0) return false;
       if (txType === 'expense' && tx.debit <= 0) return false;
       if (dateFrom) {
@@ -49,10 +49,12 @@ const TransactionsView: React.FC<Props> = ({ transactions, businessInfo, categor
     });
   }, [transactions, searchTerm, selectedCategory, showUnclassifiedOnly, txType, dateFrom, dateTo]);
 
-  const uniqueCategories = useMemo(() =>
-    ['전체', ...new Set(categories.map(c => c.name))],
-    [categories]
-  );
+  const uniqueCategories = useMemo(() => {
+    const names = new Set(categories.map(c => c.name));
+    // 파싱 직후 등 아직 정규화되지 않은 '미분류' 거래가 있으면 드롭다운에 포함
+    if (transactions.some(t => t.category === '미분류')) names.add('미분류');
+    return ['전체', ...names];
+  }, [categories, transactions]);
 
   const handleResetFilters = () => {
     setSearchTerm('');

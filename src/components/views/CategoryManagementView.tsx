@@ -97,14 +97,14 @@ const CategoryManagementView: React.FC<Props> = ({
   }, [categories]);
 
   const unclassifiedCount = useMemo(() => {
-    return transactions.filter(t => t.category === '기타매출' || t.category === '기타사업비').length;
+    return transactions.filter(t => t.category === '기타매출' || t.category === '기타사업비' || t.category === '미분류').length;
   }, [transactions]);
 
   // ── 필터된 거래 목록 ──
   const filteredTxs = useMemo(() => {
     let txs = transactions;
     if (txFilter === 'unclassified') {
-      txs = txs.filter(t => t.category === '기타매출' || t.category === '기타사업비');
+      txs = txs.filter(t => t.category === '기타매출' || t.category === '기타사업비' || t.category === '미분류');
     }
     if (selectedCatFilter !== '전체') {
       txs = txs.filter(t => t.category === selectedCatFilter);

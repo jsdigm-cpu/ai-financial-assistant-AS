@@ -125,14 +125,21 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
           const matchingRule = ruleList
               .filter(rule => tx.description.toLowerCase().includes(rule.keyword.toLowerCase()))
               .sort((a, b) => b.keyword.length - a.keyword.length)[0];
-          
+
           if (matchingRule) {
               // 규칙의 카테고리명을 표준 계정명으로 정규화
               const isIncome = tx.credit > 0;
               const normalizedCategory = normalizeCategoryName(matchingRule.category, isIncome);
               return { ...tx, category: normalizedCategory };
           }
-          
+
+          // 파서에서 초기값으로 부여된 '미분류'를 적절한 기본 카테고리로 변환하여
+          // AI 분류 단계(runClassification)에서 처리될 수 있도록 함
+          if (tx.category === '미분류') {
+              const isIncome = tx.credit > 0;
+              return { ...tx, category: isIncome ? DEFAULT_CATEGORY_INCOME : DEFAULT_CATEGORY_EXPENSE };
+          }
+
           return tx;
       });
   }, []);
