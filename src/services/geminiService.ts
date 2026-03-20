@@ -3,6 +3,9 @@ import { Transaction, Category, CategoryRule, AIReport, DeepDiveAIReport, Locati
 
 let apiKey: string | null = null;
 
+// 빌드 시 환경변수로 제공된 API 키 (Vercel 환경변수 또는 .env 파일)
+const ENV_API_KEY = (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
+
 /**
  * Gemini API 키를 설정합니다.
  */
@@ -11,19 +14,29 @@ export const setGeminiApiKey = (key: string) => {
 };
 
 /**
+ * 현재 설정된 API 키를 반환합니다 (환경변수 포함).
+ */
+export const getEffectiveApiKey = (): string => {
+  return apiKey || localStorage.getItem('ai_finance_gemini_api_key') || ENV_API_KEY || '';
+};
+
+/**
+ * 환경변수 API 키가 설정되어 있는지 확인합니다.
+ */
+export const hasEnvApiKey = (): boolean => {
+  return !!ENV_API_KEY;
+};
+
+/**
  * Gemini API 인스턴스를 생성합니다.
  */
 const getAI = () => {
-  if (!apiKey) {
-    // 로컬 스토리지에서 시도
-    const savedKey = localStorage.getItem('ai_finance_gemini_api_key');
-    if (savedKey) {
-      apiKey = savedKey;
-    } else {
-      throw new Error("Gemini API 키가 설정되지 않았습니다. 설정 화면에서 키를 입력해주세요.");
-    }
+  const key = getEffectiveApiKey();
+  if (!key) {
+    throw new Error("Gemini API 키가 설정되지 않았습니다. 설정 화면에서 키를 입력해주세요.");
   }
-  return new GoogleGenAI({ apiKey: apiKey! });
+  if (!apiKey) apiKey = key; // 캐시
+  return new GoogleGenAI({ apiKey: key });
 };
 
 /**
@@ -57,7 +70,7 @@ export const categorizeTransactions = async (
 
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash-preview-04-17",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -112,7 +125,7 @@ export const generateInitialCategorizationRules = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash-preview-04-17",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -158,7 +171,7 @@ export const generateInitialCategories = async (businessInfo: BusinessInfo): Pro
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash-preview-04-17",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -221,7 +234,7 @@ export const generateFinancialReport = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash-preview-04-17",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -281,7 +294,7 @@ export const generateDeepDiveReport = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash-preview-04-17",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -362,7 +375,7 @@ export const generateLocationAnalysisReport = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash-preview-04-17",
       contents: prompt,
       config: {
         responseMimeType: "application/json",

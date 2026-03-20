@@ -3,7 +3,7 @@ import { ProcessedData, BusinessInfo, BusinessType, AccountType, UploadedFileInf
 import { parseFile } from '../services/parser';
 import { Transaction } from '../types';
 import { BUSINESS_PRESETS } from '../constants';
-import { setGeminiApiKey } from '../services/geminiService';
+import { setGeminiApiKey, hasEnvApiKey, getEffectiveApiKey } from '../services/geminiService';
 
 interface UploadedFile {
   file: File;
@@ -25,6 +25,7 @@ const SetupScreen: React.FC<Props> = ({ onDataProcessed, onGoBack, savedSession,
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [apiKey, setApiKey] = useState<string>('');
   const [showApiKeyGuide, setShowApiKeyGuide] = useState(false);
+  const envApiKeyAvailable = hasEnvApiKey();
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [accountType, setAccountType] = useState<string>(AccountType.SOLE_PROPRIETOR);
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo>({
@@ -110,8 +111,10 @@ const SetupScreen: React.FC<Props> = ({ onDataProcessed, onGoBack, savedSession,
   }
 
   const processData = useCallback(async () => {
-    if (!apiKey.trim()) {
-      setError("Gemini API 키를 입력해주세요.");
+    // API 키: 사용자 입력 → 환경변수 → 로컬스토리지 순서로 확인
+    const effectiveKey = apiKey.trim() || getEffectiveApiKey();
+    if (!effectiveKey && !envApiKeyAvailable) {
+      setError("Gemini API 키를 입력해주세요. AI 분류 기능을 사용하려면 키가 필요합니다.");
       return;
     }
     const isPersonal = accountType === AccountType.PERSONAL;
@@ -124,9 +127,13 @@ const SetupScreen: React.FC<Props> = ({ onDataProcessed, onGoBack, savedSession,
 
     const finalBusinessInfo = { ...businessInfo, accountType };
 
-    // API 키 설정 및 저장
-    setGeminiApiKey(apiKey.trim());
-    localStorage.setItem(STORAGE_KEY_API, apiKey.trim());
+    // API 키 설정 및 저장 (입력한 경우에만 저장)
+    if (effectiveKey) {
+      setGeminiApiKey(effectiveKey);
+      if (apiKey.trim()) {
+        localStorage.setItem(STORAGE_KEY_API, apiKey.trim());
+      }
+    }
     localStorage.setItem(STORAGE_KEY_BIZ, JSON.stringify(finalBusinessInfo));
 
     setIsLoading(true);
@@ -258,39 +265,54 @@ const SetupScreen: React.FC<Props> = ({ onDataProcessed, onGoBack, savedSession,
                 </div>
                 <h3 className="text-xl font-bold text-text-primary">Google Gemini API 키</h3>
               </div>
-              <button 
-                onClick={() => setShowApiKeyGuide(!showApiKeyGuide)}
-                className="text-sm font-semibold text-brand-accent hover:text-brand-primary transition-colors underline underline-offset-4"
-              >
-                {showApiKeyGuide ? '설명 닫기' : '발급 방법 보기'}
-              </button>
+              {!envApiKeyAvailable && (
+                <button
+                  onClick={() => setShowApiKeyGuide(!showApiKeyGuide)}
+                  className="text-sm font-semibold text-brand-accent hover:text-brand-primary transition-colors underline underline-offset-4"
+                >
+                  {showApiKeyGuide ? '설명 닫기' : '발급 방법 보기'}
+                </button>
+              )}
             </div>
-            
-            {showApiKeyGuide && (
-              <div className="mb-6 p-5 bg-white rounded-xl border border-border-color text-base text-text-muted space-y-2 shadow-sm">
-                <p className="font-medium text-text-primary mb-2">API 키 발급 순서:</p>
-                <p>1. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-brand-accent font-semibold hover:underline">Google AI Studio</a>에 접속합니다.</p>
-                <p>2. Google 계정으로 로그인합니다.</p>
-                <p>3. <span className="font-semibold">"API 키 만들기"</span> 버튼을 클릭합니다.</p>
-                <p>4. 생성된 긴 문자열(키)을 복사하여 아래에 붙여넣기 합니다.</p>
-                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <p className="text-sm text-amber-800 font-medium">API 키는 본인만 사용하세요. 브라우저에만 안전하게 저장됩니다.</p>
+
+            {envApiKeyAvailable ? (
+              <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-emerald-600 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <p className="font-bold text-emerald-800">AI 키가 자동으로 설정되었습니다</p>
+                  <p className="text-sm text-emerald-700 mt-0.5">별도 입력 없이 AI 분류 기능을 바로 사용할 수 있습니다.</p>
                 </div>
               </div>
+            ) : (
+              <>
+                {showApiKeyGuide && (
+                  <div className="mb-6 p-5 bg-white rounded-xl border border-border-color text-base text-text-muted space-y-2 shadow-sm">
+                    <p className="font-medium text-text-primary mb-2">API 키 발급 순서:</p>
+                    <p>1. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-brand-accent font-semibold hover:underline">Google AI Studio</a>에 접속합니다.</p>
+                    <p>2. Google 계정으로 로그인합니다.</p>
+                    <p>3. <span className="font-semibold">"API 키 만들기"</span> 버튼을 클릭합니다.</p>
+                    <p>4. 생성된 긴 문자열(키)을 복사하여 아래에 붙여넣기 합니다.</p>
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <p className="text-sm text-amber-800 font-medium">API 키는 본인만 사용하세요. 브라우저에만 안전하게 저장됩니다.</p>
+                    </div>
+                  </div>
+                )}
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  className="w-full bg-white border-2 border-border-color rounded-xl px-4 py-4 text-lg focus:ring-4 focus:ring-brand-accent/20 focus:border-brand-accent text-text-primary transition-all shadow-sm"
+                  placeholder="AIzaSy... 로 시작하는 키를 입력하세요"
+                  autoComplete="off"
+                />
+                {apiKey && <p className="text-sm font-medium text-emerald-600 mt-3 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg> API 키가 입력되었습니다.</p>}
+              </>
             )}
-            
-            <input 
-              type="password" 
-              value={apiKey} 
-              onChange={(e) => setApiKey(e.target.value)} 
-              className="w-full bg-white border-2 border-border-color rounded-xl px-4 py-4 text-lg focus:ring-4 focus:ring-brand-accent/20 focus:border-brand-accent text-text-primary transition-all shadow-sm"
-              placeholder="AIzaSy... 로 시작하는 키를 입력하세요"
-              autoComplete="off"
-            />
-            {apiKey && <p className="text-sm font-medium text-emerald-600 mt-3 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg> API 키가 입력되었습니다.</p>}
           </div>
 
           {/* Step 0.5: 통장 구분 선택 */}

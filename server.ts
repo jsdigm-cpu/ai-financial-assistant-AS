@@ -27,11 +27,12 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
+  // ── Stripe 결제 (기존 유지) ──────────────────────────────────
   app.post('/api/create-checkout-session', async (req, res) => {
     try {
       const { reportType, price } = req.body;
       const stripe = getStripe();
-      
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [
@@ -56,6 +57,55 @@ async function startServer() {
     } catch (error: any) {
       console.error('Stripe error:', error);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ── 토스페이먼츠 결제 확인 ────────────────────────────────────
+  app.post('/api/toss/confirm', async (req, res) => {
+    const { paymentKey, orderId, amount } = req.body;
+
+    if (!paymentKey || !orderId || !amount) {
+      res.status(400).json({ success: false, error: '필수 파라미터가 누락되었습니다.' });
+      return;
+    }
+
+    // 금액 검증: PDF 1건 = 1,000원
+    if (Number(amount) !== 1000) {
+      res.status(400).json({ success: false, error: '결제 금액이 올바르지 않습니다.' });
+      return;
+    }
+
+    const secretKey = process.env.TOSS_SECRET_KEY;
+    if (!secretKey) {
+      // 테스트 환경 또는 키 미설정 시 성공으로 처리 (개발용)
+      console.warn('[Toss] TOSS_SECRET_KEY 미설정 - 테스트 모드로 결제 확인을 건너뜁니다.');
+      res.json({ success: true, message: 'test_mode' });
+      return;
+    }
+
+    try {
+      const encoded = Buffer.from(`${secretKey}:`).toString('base64');
+      const response = await fetch('https://api.tosspayments.com/v1/payments/confirm', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${encoded}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ paymentKey, orderId, amount: Number(amount) }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`[Toss] 결제 성공 - orderId: ${orderId}, amount: ${amount}원`);
+        res.json({ success: true, data });
+      } else {
+        const errorData = await response.json();
+        console.error('[Toss] 결제 확인 실패:', errorData);
+        res.status(400).json({ success: false, error: errorData.message || '결제 확인에 실패했습니다.' });
+      }
+    } catch (error: any) {
+      console.error('[Toss] 서버 오류:', error);
+      res.status(500).json({ success: false, error: '결제 서버 오류가 발생했습니다.' });
     }
   });
 
