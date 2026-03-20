@@ -127,9 +127,11 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
               .sort((a, b) => b.keyword.length - a.keyword.length)[0];
 
           if (matchingRule) {
-              // 규칙의 카테고리명을 표준 계정명으로 정규화
               const isIncome = tx.credit > 0;
-              const normalizedCategory = normalizeCategoryName(matchingRule.category, isIncome);
+              // 수동 규칙은 사용자가 드롭다운에서 직접 선택한 유효한 카테고리명이므로 정규화 생략
+              const normalizedCategory = matchingRule.source === 'manual'
+                  ? matchingRule.category
+                  : normalizeCategoryName(matchingRule.category, isIncome);
               return { ...tx, category: normalizedCategory };
           }
 

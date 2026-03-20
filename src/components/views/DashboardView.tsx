@@ -66,16 +66,13 @@ function getPeriodLabel(period: string) {
   return '';
 }
 
-function getLevel2(catName: string, isIncome: boolean) {
-  return CATEGORY_MAP[catName]?.level2 ?? (isIncome ? '영업외 수익' : '사업외 지출');
-}
-
-function getCostGroup(catName: string) {
-  return CATEGORY_MAP[catName]?.costGroup ?? null;
-}
-
 // ── 손익 계산 핵심 로직 ──
-function calcPL(txs: Transaction[]) {
+function calcPL(txs: Transaction[], catLookup: Record<string, Category>) {
+  const getLevel2 = (catName: string, isIncome: boolean) =>
+    catLookup[catName]?.level2 ?? (isIncome ? '영업외 수익' : '사업외 지출');
+  const getCostGroup = (catName: string) =>
+    catLookup[catName]?.costGroup ?? null;
+
   const sumL2 = (l2: string) => {
     let t = 0;
     txs.forEach(tx => {
@@ -219,23 +216,23 @@ const SummaryBlock: React.FC<{
 // ── P&L 테이블 행 컴포넌트 ──
 const PlRow: React.FC<{ label: string; amount: number; base: number; indent?: boolean }> = ({ label, amount, base, indent }) => (
   <tr className="hover:bg-surface-subtle/40 border-b border-border-color/20 last:border-0">
-    <td className={`py-2.5 px-4 text-sm text-text-muted font-medium ${indent ? 'pl-10' : ''}`}>{label}</td>
-    <td className="py-2.5 px-4 text-right text-sm font-semibold text-text-primary">{fmtW(amount)}</td>
-    <td className="py-2.5 px-4 text-right text-sm text-text-muted font-medium">{pct(amount, base)}</td>
+    <td className={`py-1.5 px-4 text-sm text-text-muted font-medium ${indent ? 'pl-10' : ''}`}>{label}</td>
+    <td className="py-1.5 px-4 text-right text-sm font-semibold text-text-primary">{fmtW(amount)}</td>
+    <td className="py-1.5 px-4 text-right text-sm text-text-muted font-medium">{pct(amount, base)}</td>
   </tr>
 );
 
 const PlSubtotal: React.FC<{ label: string; amount: number; base: number }> = ({ label, amount, base }) => (
   <tr className="border-t border-border-color bg-surface-subtle/50">
-    <td className="py-2.5 px-4 pl-8 text-sm font-bold text-text-primary">{label}</td>
-    <td className="py-2.5 px-4 text-right text-sm font-bold text-text-primary">{fmtW(amount)}</td>
-    <td className="py-2.5 px-4 text-right text-sm font-bold text-text-muted">{pct(amount, base)}</td>
+    <td className="py-1.5 px-4 pl-8 text-sm font-bold text-text-primary">{label}</td>
+    <td className="py-1.5 px-4 text-right text-sm font-bold text-text-primary">{fmtW(amount)}</td>
+    <td className="py-1.5 px-4 text-right text-sm font-bold text-text-muted">{pct(amount, base)}</td>
   </tr>
 );
 
 const PlSectionHead: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <tr className="bg-white">
-    <td colSpan={3} className="py-3 px-4 font-bold text-sm text-brand-accent border-b-2 border-brand-accent/20">
+    <td colSpan={3} className="py-2 px-4 font-bold text-sm text-brand-accent border-b-2 border-brand-accent/20">
       {children}
     </td>
   </tr>
@@ -245,15 +242,15 @@ const PlKeyRow: React.FC<{ badge: string; label: string; amount: number; base: n
   const isPos = amount >= 0;
   return (
     <tr className={`border-t-2 ${isPos ? 'border-emerald-400 bg-emerald-50/60' : 'border-red-400 bg-red-50/60'}`}>
-      <td className="py-3.5 px-4">
+      <td className="py-2.5 px-4">
         <span className={`text-xs font-black px-2 py-0.5 rounded-full mr-2 ${isPos ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{badge}</span>
         <span className="font-bold text-text-primary">{label}</span>
         {desc && <span className="ml-2 text-xs text-text-muted font-normal">{desc}</span>}
       </td>
-      <td className={`py-3.5 px-4 text-right text-lg font-black ${isPos ? 'text-emerald-600' : 'text-red-600'}`}>
+      <td className={`py-2.5 px-4 text-right text-lg font-black ${isPos ? 'text-emerald-600' : 'text-red-600'}`}>
         {isPos ? '+' : ''}{fmtW(amount)}
       </td>
-      <td className="py-3.5 px-4 text-right font-bold text-text-muted">{pct(amount, base)}</td>
+      <td className="py-2.5 px-4 text-right font-bold text-text-muted">{pct(amount, base)}</td>
     </tr>
   );
 };
@@ -262,7 +259,7 @@ const PlFinalRow: React.FC<{ amount: number; base: number }> = ({ amount, base }
   const isPos = amount >= 0;
   return (
     <tr className={`border-t-4 ${isPos ? 'border-brand-primary bg-brand-primary/5' : 'border-red-500 bg-red-50'}`}>
-      <td className="py-5 px-4">
+      <td className="py-3.5 px-4">
         <div className="flex items-center gap-2">
           <span className="text-base font-black px-2.5 py-1 rounded-xl bg-brand-primary text-white">③</span>
           <div>
@@ -271,10 +268,10 @@ const PlFinalRow: React.FC<{ amount: number; base: number }> = ({ amount, base }
           </div>
         </div>
       </td>
-      <td className={`py-5 px-4 text-right text-2xl font-black ${isPos ? 'text-brand-primary' : 'text-red-600'}`}>
+      <td className={`py-3.5 px-4 text-right text-2xl font-black ${isPos ? 'text-brand-primary' : 'text-red-600'}`}>
         {isPos ? '+' : ''}{fmtW(amount)}
       </td>
-      <td className="py-5 px-4 text-right font-bold text-brand-primary">{pct(amount, base)}</td>
+      <td className="py-3.5 px-4 text-right font-bold text-brand-primary">{pct(amount, base)}</td>
     </tr>
   );
 };
@@ -289,14 +286,23 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
   const periodOptions = useMemo(() => getPeriodOptions(transactions), [transactions]);
   const periodLabel = getPeriodLabel(selectedPeriod);
   const filteredTxs = useMemo(() => filterByPeriod(transactions, selectedPeriod), [transactions, selectedPeriod]);
-  const pl = useMemo(() => calcPL(filteredTxs), [filteredTxs]);
+
+  // CATEGORY_MAP + 사용자 정의 카테고리를 합친 런타임 조회 맵
+  const catLookup = useMemo(() => {
+    const map: Record<string, Category> = { ...CATEGORY_MAP };
+    categories.forEach(c => { map[c.name] = c; });
+    return map;
+  }, [categories]);
+
+  const pl = useMemo(() => calcPL(filteredTxs, catLookup), [filteredTxs, catLookup]);
 
   const monthlyData = useMemo(() => {
     const map: Record<string, { bizRev: number; bizExp: number; nonOpInc: number; nonOpExp: number }> = {};
     filteredTxs.forEach(tx => {
       const key = `${tx.date.getFullYear()}-${String(tx.date.getMonth() + 1).padStart(2, '0')}`;
       if (!map[key]) map[key] = { bizRev: 0, bizExp: 0, nonOpInc: 0, nonOpExp: 0 };
-      const l2 = getLevel2(tx.category, tx.credit > 0);
+      const isIncome = tx.credit > 0;
+      const l2 = catLookup[tx.category]?.level2 ?? (isIncome ? '영업외 수익' : '사업외 지출');
       if (l2 === '영업 수익') map[key].bizRev += tx.credit;
       else if (l2 === '영업 비용') map[key].bizExp += tx.debit;
       else if (l2 === '영업외 수익') map[key].nonOpInc += tx.credit;
@@ -310,7 +316,7 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
       '영업외수지': map[k].nonOpInc - map[k].nonOpExp,
       '현금종합수지': (map[k].bizRev - map[k].bizExp) + (map[k].nonOpInc - map[k].nonOpExp),
     }));
-  }, [filteredTxs]);
+  }, [filteredTxs, catLookup]);
 
   const doExport = async () => {
     if (!contentRef.current || isExporting) return;
@@ -463,8 +469,8 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
                 </PlSectionHead>
 
                 {/* 사업 매출 */}
-                <tr className="bg-emerald-50/40">
-                  <td colSpan={3} className="py-2 px-4 text-xs font-bold text-emerald-700 uppercase tracking-wider">▶ 사업 매출 (영업 수익)</td>
+                <tr className="bg-emerald-50/60">
+                  <td colSpan={3} className="py-1.5 px-4 text-sm font-bold text-emerald-800">▶ 사업 매출 (영업 수익)</td>
                 </tr>
                 {pl.incomeDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
                 {pl.incomeDetail.length === 0 && (
@@ -473,30 +479,30 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
                 <PlSubtotal label="사업 매출 합계" amount={pl.bizRevenue} base={pl.bizRevenue} />
 
                 {/* 사업 비용 */}
-                <tr className="bg-red-50/40">
-                  <td colSpan={3} className="py-2 px-4 text-xs font-bold text-red-700 uppercase tracking-wider">▶ 사업 비용 (영업 비용)</td>
+                <tr className="bg-red-50/60">
+                  <td colSpan={3} className="py-1.5 px-4 text-sm font-bold text-red-800">▶ 사업 비용 (영업 비용)</td>
                 </tr>
 
                 {pl.laborDetail.length > 0 && (<>
-                  <tr><td colSpan={3} className="py-1.5 px-4 text-xs font-semibold text-text-muted">인건비</td></tr>
+                  <tr><td colSpan={3} className="py-1 px-4 text-xs font-bold text-gray-600 bg-gray-50/50">인건비</td></tr>
                   {pl.laborDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
                   <PlSubtotal label="인건비 소계" amount={pl.laborCost} base={pl.bizRevenue} />
                 </>)}
 
                 {pl.materialDetail.length > 0 && (<>
-                  <tr><td colSpan={3} className="py-1.5 px-4 text-xs font-semibold text-text-muted">재료비</td></tr>
+                  <tr><td colSpan={3} className="py-1 px-4 text-xs font-bold text-gray-600 bg-gray-50/50">재료비</td></tr>
                   {pl.materialDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
                   <PlSubtotal label="재료비 소계" amount={pl.materialCost} base={pl.bizRevenue} />
                 </>)}
 
                 {pl.fixedDetail.length > 0 && (<>
-                  <tr><td colSpan={3} className="py-1.5 px-4 text-xs font-semibold text-text-muted">고정비</td></tr>
+                  <tr><td colSpan={3} className="py-1 px-4 text-xs font-bold text-gray-600 bg-gray-50/50">고정비</td></tr>
                   {pl.fixedDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
                   <PlSubtotal label="고정비 소계" amount={pl.fixedCost} base={pl.bizRevenue} />
                 </>)}
 
                 {pl.variableDetail.length > 0 && (<>
-                  <tr><td colSpan={3} className="py-1.5 px-4 text-xs font-semibold text-text-muted">변동비</td></tr>
+                  <tr><td colSpan={3} className="py-1 px-4 text-xs font-bold text-gray-600 bg-gray-50/50">변동비</td></tr>
                   {pl.variableDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
                   <PlSubtotal label="변동비 소계" amount={pl.variableCost} base={pl.bizRevenue} />
                 </>)}
@@ -523,8 +529,8 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
                   </span>
                 </PlSectionHead>
 
-                <tr className="bg-teal-50/40">
-                  <td colSpan={3} className="py-2 px-4 text-xs font-bold text-teal-700 uppercase tracking-wider">▶ 영업외 수익 (정부지원금, 외부입금 등)</td>
+                <tr className="bg-teal-50/60">
+                  <td colSpan={3} className="py-1.5 px-4 text-sm font-bold text-teal-800">▶ 영업외 수익 (정부지원금, 외부입금 등)</td>
                 </tr>
                 {pl.nonOpIncDetail.map(a => (
                   <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />
@@ -541,8 +547,8 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
                 )}
                 <PlSubtotal label="영업외 수익 합계" amount={pl.nonOpIncome} base={pl.bizRevenue} />
 
-                <tr className="bg-orange-50/40">
-                  <td colSpan={3} className="py-2 px-4 text-xs font-bold text-orange-700 uppercase tracking-wider">▶ 사업외 지출 (부채상환, 개인생활비, 이체 등)</td>
+                <tr className="bg-orange-50/60">
+                  <td colSpan={3} className="py-1.5 px-4 text-sm font-bold text-orange-800">▶ 사업외 지출 (부채상환, 개인생활비, 이체 등)</td>
                 </tr>
 
                 {/* [부채/금융] */}
