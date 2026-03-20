@@ -125,7 +125,10 @@ const ValueView: React.FC<Props> = ({ transactions, businessInfo, pendingPdfDown
 
   useEffect(() => {
     if (pendingPdfDownload?.type === 'value') {
-      doExport().then(() => onPdfDownloadConsumed?.());
+      const timer = setTimeout(() => {
+        doExport().then(() => onPdfDownloadConsumed?.());
+      }, 500);
+      return () => clearTimeout(timer);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPdfDownload]);

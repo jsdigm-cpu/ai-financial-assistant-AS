@@ -222,10 +222,13 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
     }
   };
 
-  // 결제 완료 후 자동 다운로드
+  // 결제 완료 후 자동 다운로드 (contentRef가 마운트된 후 실행되도록 지연)
   useEffect(() => {
     if (pendingPdfDownload?.type === 'dashboard') {
-      doExport().then(() => onPdfDownloadConsumed?.());
+      const timer = setTimeout(() => {
+        doExport().then(() => onPdfDownloadConsumed?.());
+      }, 500);
+      return () => clearTimeout(timer);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPdfDownload]);
