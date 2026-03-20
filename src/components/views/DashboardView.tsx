@@ -1,6 +1,13 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Transaction, BusinessInfo, Category } from '../../types';
-import { CATEGORY_MAP } from '../../constants';
+import {
+  CATEGORY_MAP,
+  LOAN_IN_CATEGORIES,
+  LOAN_OUT_CATEGORIES,
+  DEBT_EXPENSE_CATEGORIES,
+  PERSONAL_LIFE_CATEGORIES,
+  TRANSFER_CATEGORIES,
+} from '../../constants';
 import IncomeExpenseChart from '../IncomeExpenseChart';
 import CategoryPieChart from '../CategoryPieChart';
 import TopCategoriesChart from '../TopCategoriesChart';
@@ -86,12 +93,21 @@ function calcPL(txs: Transaction[]) {
     return t;
   };
 
-  const getDetail = (l2: string, cg?: string) => {
+  const sumByCategories = (catSet: Set<string>) => {
+    let t = 0;
+    txs.forEach(tx => {
+      if (catSet.has(tx.category)) t += tx.credit > 0 ? tx.credit : tx.debit;
+    });
+    return t;
+  };
+
+  const getDetail = (l2: string, cg?: string, catSet?: Set<string>) => {
     const map: Record<string, number> = {};
     txs.forEach(tx => {
       const isInc = tx.credit > 0;
       if (getLevel2(tx.category, isInc) !== l2) return;
       if (cg && getCostGroup(tx.category) !== cg) return;
+      if (catSet && !catSet.has(tx.category)) return;
       const amt = isInc ? tx.credit : tx.debit;
       map[tx.category] = (map[tx.category] ?? 0) + amt;
     });
@@ -114,24 +130,46 @@ function calcPL(txs: Transaction[]) {
   // ③ 현금 종합수지
   const cashTotal = bizProfit + nonOpBalance;
 
-  // 비용 그룹
+  // 영업 비용 그룹
   const laborCost    = sumCG('인건비');
   const materialCost = sumCG('재료비');
   const fixedCost    = sumCG('고정비');
   const variableCost = sumCG('변동비');
+
+  // 영업외 수익: 차입금 별도 집계
+  const loanIncome   = sumByCategories(LOAN_IN_CATEGORIES);
+
+  // 사업외 지출 서브그룹
+  const debtExpense          = sumByCategories(DEBT_EXPENSE_CATEGORIES);
+  const personalLifeExpense  = sumByCategories(PERSONAL_LIFE_CATEGORIES);
+  const transferExpense      = sumByCategories(TRANSFER_CATEGORIES);
+  const loanOutExpense       = sumByCategories(LOAN_OUT_CATEGORIES);
 
   return {
     bizRevenue, bizExpense, bizProfit,
     nonOpIncome, nonOpExpense, nonOpBalance,
     cashTotal,
     laborCost, materialCost, fixedCost, variableCost,
-    incomeDetail:   getDetail('영업 수익'),
-    laborDetail:    getDetail('영업 비용', '인건비'),
-    materialDetail: getDetail('영업 비용', '재료비'),
-    fixedDetail:    getDetail('영업 비용', '고정비'),
-    variableDetail: getDetail('영업 비용', '변동비'),
-    nonOpIncDetail: getDetail('영업외 수익'),
-    nonOpExpDetail: getDetail('사업외 지출'),
+    loanIncome, loanOutExpense,
+    debtExpense, personalLifeExpense, transferExpense,
+    incomeDetail:      getDetail('영업 수익'),
+    laborDetail:       getDetail('영업 비용', '인건비'),
+    materialDetail:    getDetail('영업 비용', '재료비'),
+    fixedDetail:       getDetail('영업 비용', '고정비'),
+    variableDetail:    getDetail('영업 비용', '변동비'),
+    nonOpIncDetail:    getDetail('영업외 수익'),
+    nonOpExpDebt:      getDetail('사업외 지출', undefined, DEBT_EXPENSE_CATEGORIES),
+    nonOpExpLife:      getDetail('사업외 지출', undefined, PERSONAL_LIFE_CATEGORIES),
+    nonOpExpTransfer:  getDetail('사업외 지출', undefined, TRANSFER_CATEGORIES),
+    nonOpExpMisc:      getDetail('사업외 지출', undefined, new Set(
+      txs.filter(tx => {
+        const l2 = getLevel2(tx.category, tx.credit > 0);
+        return l2 === '사업외 지출'
+          && !DEBT_EXPENSE_CATEGORIES.has(tx.category)
+          && !PERSONAL_LIFE_CATEGORIES.has(tx.category)
+          && !TRANSFER_CATEGORIES.has(tx.category);
+      }).map(tx => tx.category)
+    )),
   };
 }
 
@@ -488,17 +526,74 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
                 <tr className="bg-teal-50/40">
                   <td colSpan={3} className="py-2 px-4 text-xs font-bold text-teal-700 uppercase tracking-wider">▶ 영업외 수익 (정부지원금, 외부입금 등)</td>
                 </tr>
-                {pl.nonOpIncDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
+                {pl.nonOpIncDetail.map(a => (
+                  <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />
+                ))}
+                {pl.loanIncome > 0 && (
+                  <tr>
+                    <td colSpan={3} className="py-1 pl-10 text-[10px] text-amber-600 font-bold">
+                      ⚠ 차입금 {fmtW(pl.loanIncome)} 포함 — 실제 수익이 아닌 부채 입금이므로 손익 해석 시 참고하세요.
+                    </td>
+                  </tr>
+                )}
                 {pl.nonOpIncDetail.length === 0 && (
                   <tr><td colSpan={3} className="py-3 pl-10 text-text-muted italic text-sm">해당 항목 없음</td></tr>
                 )}
                 <PlSubtotal label="영업외 수익 합계" amount={pl.nonOpIncome} base={pl.bizRevenue} />
 
                 <tr className="bg-orange-50/40">
-                  <td colSpan={3} className="py-2 px-4 text-xs font-bold text-orange-700 uppercase tracking-wider">▶ 사업외 지출 (개인사비, 카드대금, 개인출금 등)</td>
+                  <td colSpan={3} className="py-2 px-4 text-xs font-bold text-orange-700 uppercase tracking-wider">▶ 사업외 지출 (부채상환, 개인생활비, 이체 등)</td>
                 </tr>
-                {pl.nonOpExpDetail.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
-                {pl.nonOpExpDetail.length === 0 && (
+
+                {/* [부채/금융] */}
+                {pl.nonOpExpDebt.length > 0 && (<>
+                  <tr className="bg-red-50/30">
+                    <td colSpan={3} className="py-1.5 px-4 text-xs font-semibold text-red-600">
+                      💳 부채·금융 (대출상환·이자·카드대금)
+                    </td>
+                  </tr>
+                  {pl.nonOpExpDebt.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
+                  {pl.loanOutExpense > 0 && (
+                    <tr>
+                      <td colSpan={3} className="py-1 pl-10 text-[10px] text-amber-600 font-bold">
+                        ⚠ 대출원금상환 {fmtW(pl.loanOutExpense)} 포함 — 원금 상환은 비용이 아닌 부채 감소입니다.
+                      </td>
+                    </tr>
+                  )}
+                  <PlSubtotal label="부채·금융 소계" amount={pl.debtExpense} base={pl.bizRevenue} />
+                </>)}
+
+                {/* [개인 생활비] */}
+                {pl.nonOpExpLife.length > 0 && (<>
+                  <tr className="bg-orange-50/30">
+                    <td colSpan={3} className="py-1.5 px-4 text-xs font-semibold text-orange-600">
+                      🏠 개인 생활비 (병원·식비·교통 등)
+                    </td>
+                  </tr>
+                  {pl.nonOpExpLife.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
+                  <PlSubtotal label="개인 생활비 소계" amount={pl.personalLifeExpense} base={pl.bizRevenue} />
+                </>)}
+
+                {/* [이전/이체] */}
+                {pl.nonOpExpTransfer.length > 0 && (<>
+                  <tr className="bg-yellow-50/30">
+                    <td colSpan={3} className="py-1.5 px-4 text-xs font-semibold text-yellow-700">
+                      💸 이전·이체 (가족용돈·저축)
+                    </td>
+                  </tr>
+                  {pl.nonOpExpTransfer.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
+                  <PlSubtotal label="이전·이체 소계" amount={pl.transferExpense} base={pl.bizRevenue} />
+                </>)}
+
+                {/* [기타] */}
+                {pl.nonOpExpMisc.length > 0 && (<>
+                  <tr>
+                    <td colSpan={3} className="py-1.5 px-4 text-xs font-semibold text-text-muted">기타 출금</td>
+                  </tr>
+                  {pl.nonOpExpMisc.map(a => <PlRow key={a.name} label={a.name} amount={a.amount} base={pl.bizRevenue} indent />)}
+                </>)}
+
+                {(pl.nonOpExpDebt.length + pl.nonOpExpLife.length + pl.nonOpExpTransfer.length + pl.nonOpExpMisc.length) === 0 && (
                   <tr><td colSpan={3} className="py-3 pl-10 text-text-muted italic text-sm">해당 항목 없음</td></tr>
                 )}
                 <PlSubtotal label="사업외 지출 합계" amount={pl.nonOpExpense} base={pl.bizRevenue} />
@@ -521,8 +616,9 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
           {/* 하단 설명 */}
           <div className="mt-4 p-4 bg-surface-subtle rounded-xl border border-border-color text-xs text-text-muted space-y-1">
             <p><strong>① 사업 손익</strong>: 실제 사업 운영에서 발생한 순이익 (영업 수익 - 영업 비용)</p>
-            <p><strong>② 영업외 수지</strong>: 사업과 무관한 수입/지출 (정부지원금, 개인사비, 카드대금 등)</p>
-            <p><strong>③ 현금 종합수지</strong>: 통장의 실질적인 전체 현금 증감 (① + ②). 사업 손익과 개인 지출이 섞인 개인사업자 통장의 실질 현금 흐름입니다.</p>
+            <p><strong>② 영업외 수지</strong>: 사업과 무관한 수입/지출. 사업외 지출은 [부채·금융] [개인생활비] [이전·이체] 세 그룹으로 구분합니다.</p>
+            <p><strong>⚠ 차입금 / 대출원금상환</strong>: 통장에는 입출금으로 잡히지만 실제 손익이 아닌 부채 변동입니다. 손익 해석 시 참고하세요.</p>
+            <p><strong>③ 현금 종합수지</strong>: 통장의 실질적인 전체 현금 증감 (① + ②). 개인사업자 통장의 실질 현금 흐름입니다.</p>
           </div>
         </div>
 
