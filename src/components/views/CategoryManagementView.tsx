@@ -147,12 +147,16 @@ const CategoryManagementView: React.FC<Props> = ({
   const handleCatItemDragStart = (e: React.DragEvent, catName: string) => {
     setDraggingCatName(catName);
     e.dataTransfer.effectAllowed = 'move';
+    // Firefox 등 일부 브라우저는 setData 없이 드래그가 시작되지 않음
+    e.dataTransfer.setData('text/plain', catName);
   };
 
   const handleCatItemDrop = (e: React.DragEvent, targetName: string) => {
     e.preventDefault();
-    if (draggingCatName && draggingCatName !== targetName) {
-      onMoveCategory(draggingCatName, targetName);
+    e.stopPropagation();
+    const source = e.dataTransfer.getData('text/plain') || draggingCatName;
+    if (source && source !== targetName) {
+      onMoveCategory(source, targetName);
     }
     setDraggingCatName(null);
   };
@@ -561,10 +565,10 @@ const CategoryManagementView: React.FC<Props> = ({
                         key={cat.name}
                         draggable
                         onDragStart={(e) => handleCatItemDragStart(e, cat.name)}
-                        onDragOver={(e) => { e.preventDefault(); }}
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
                         onDrop={(e) => handleCatItemDrop(e, cat.name)}
                         onDragEnd={() => setDraggingCatName(null)}
-                        className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                        className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
                           draggingCatName === cat.name ? 'opacity-40 border-dashed border-brand-primary' : 'border-border-color bg-surface-subtle hover:border-brand-primary/30'
                         }`}
                       >

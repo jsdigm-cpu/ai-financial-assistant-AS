@@ -179,24 +179,24 @@ const TransactionsTable: React.FC<Props> = ({ transactions, categories, onUpdate
                   key={tx.id}
                   className={`hover:bg-surface-subtle/60 transition-colors ${isUnclassified ? 'bg-amber-50/40' : ''}`}
                 >
-                  <td className="px-4 py-2.5 whitespace-nowrap text-sm font-medium text-text-primary">
+                  <td className="px-4 py-1.5 whitespace-nowrap text-sm font-medium text-text-primary">
                     {formatDate(tx.date)}
                   </td>
-                  <td className="px-4 py-2.5 text-sm text-text-muted max-w-xs">
+                  <td className="px-4 py-1.5 text-sm text-text-muted max-w-xs">
                     <span className="block truncate font-medium" title={tx.description}>
                       {tx.description}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap text-sm text-right text-red-600 font-bold">
+                  <td className="px-4 py-1.5 whitespace-nowrap text-sm text-right text-red-600 font-bold">
                     {tx.debit > 0 ? fmt(tx.debit) : '-'}
                   </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap text-sm text-right text-emerald-600 font-bold">
+                  <td className="px-4 py-1.5 whitespace-nowrap text-sm text-right text-emerald-600 font-bold">
                     {tx.credit > 0 ? fmt(tx.credit) : '-'}
                   </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap text-sm text-right text-text-muted font-medium">
+                  <td className="px-4 py-1.5 whitespace-nowrap text-sm text-right text-text-muted font-medium">
                     {tx.balance > 0 ? fmt(tx.balance) : '-'}
                   </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap">
+                  <td className="px-4 py-1.5 whitespace-nowrap">
                     <HierarchyCategoryCell
                       tx={tx}
                       categories={categories}
