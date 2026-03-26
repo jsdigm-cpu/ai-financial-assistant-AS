@@ -615,6 +615,8 @@ export const DEFAULT_KEYWORD_RULES: CategoryRule[] = [
   { keyword: '카드매출', category: '카드매출', source: 'ai' },
   { keyword: '신용카드매출', category: '카드매출', source: 'ai' },
   { keyword: 'VAN정산', category: '카드매출', source: 'ai' },
+  { keyword: '카드정산', category: '카드매출', source: 'ai' },
+  { keyword: 'POS정산', category: '카드매출', source: 'ai' },
   { keyword: '배달의민족', category: '배달매출', source: 'ai' },
   { keyword: '쿠팡이츠', category: '배달매출', source: 'ai' },
   { keyword: '요기요', category: '배달매출', source: 'ai' },
@@ -622,6 +624,7 @@ export const DEFAULT_KEYWORD_RULES: CategoryRule[] = [
   { keyword: '지역화폐', category: '지역화폐', source: 'ai' },
   { keyword: '제로페이', category: '지역화폐', source: 'ai' },
   { keyword: '지역사랑상품권', category: '지역화폐', source: 'ai' },
+  { keyword: '온누리상품권', category: '지역화폐', source: 'ai' },
   { keyword: '카카오페이', category: '간편결제', source: 'ai' },
   { keyword: '네이버페이', category: '간편결제', source: 'ai' },
   { keyword: '토스페이', category: '간편결제', source: 'ai' },
@@ -630,24 +633,48 @@ export const DEFAULT_KEYWORD_RULES: CategoryRule[] = [
   { keyword: '11번가', category: '입점몰매출', source: 'ai' },
   { keyword: 'G마켓', category: '입점몰매출', source: 'ai' },
   { keyword: '옥션', category: '입점몰매출', source: 'ai' },
-  // ── 영업외 수익 ──
+
+  // ── 영업외 수익: 환급·환불 (입금 → 방향 검증으로 출금엔 자동 배제) ──
+  { keyword: '환급금', category: '보험금·환급금', source: 'ai' },
+  { keyword: '수수료환급', category: '보험금·환급금', source: 'ai' },
+  { keyword: '우대환급', category: '보험금·환급금', source: 'ai' },
+  { keyword: '가맹점환급', category: '보험금·환급금', source: 'ai' },
+  { keyword: '세금환급', category: '보험금·환급금', source: 'ai' },
+  { keyword: '부가세환급', category: '보험금·환급금', source: 'ai' },
+  { keyword: '종합소득세환급', category: '보험금·환급금', source: 'ai' },
+  { keyword: '보증금반환', category: '보험금·환급금', source: 'ai' },
+  { keyword: '보험금', category: '보험금·환급금', source: 'ai' },
+  { keyword: '환불', category: '보험금·환급금', source: 'ai' },
+  // ── 영업외 수익: 지원금 ──
   { keyword: '정부지원', category: '정부지원금', source: 'ai' },
   { keyword: '소상공인지원', category: '정부지원금', source: 'ai' },
   { keyword: '재난지원금', category: '정부지원금', source: 'ai' },
   { keyword: '보조금', category: '정부지원금', source: 'ai' },
+  { keyword: '지원금', category: '정부지원금', source: 'ai' },
+  { keyword: '배달택배비지원', category: '정부지원금', source: 'ai' },
+  { keyword: '배달비지원', category: '정부지원금', source: 'ai' },
+  // ── 영업외 수익: 대출 ──
   { keyword: '대출실행', category: '차입금', source: 'ai' },
   { keyword: '한도대출', category: '차입금', source: 'ai' },
   { keyword: '신규대출', category: '차입금', source: 'ai' },
+  // ── 영업외 수익: 이자 ──
   { keyword: '이자수익', category: '이자수익', source: 'ai' },
   { keyword: '예금이자', category: '이자수익', source: 'ai' },
+  { keyword: '적금이자', category: '이자수익', source: 'ai' },
+
   // ── 인건비 ──
   { keyword: '급여이체', category: '인건비(정규)', source: 'ai' },
   { keyword: '월급', category: '인건비(정규)', source: 'ai' },
+  { keyword: '급여', category: '인건비(정규)', source: 'ai' },
   { keyword: '알바비', category: '인건비(알바)', source: 'ai' },
   { keyword: '아르바이트', category: '인건비(알바)', source: 'ai' },
+  { keyword: '파트타임', category: '인건비(알바)', source: 'ai' },
+
   // ── 재료비 ──
   { keyword: '식자재', category: '원재료(식자재)', source: 'ai' },
   { keyword: '식품유통', category: '원재료(식자재)', source: 'ai' },
+  { keyword: '농수산', category: '원재료(식자재)', source: 'ai' },
+
   // ── 고정비 ──
   { keyword: '임대료', category: '임대료·관리비', source: 'ai' },
   { keyword: '월세', category: '임대료·관리비', source: 'ai' },
@@ -660,10 +687,29 @@ export const DEFAULT_KEYWORD_RULES: CategoryRule[] = [
   { keyword: 'SKT', category: '통신·IT비', source: 'ai' },
   { keyword: 'LGU', category: '통신·IT비', source: 'ai' },
   { keyword: '보험료', category: '보험료', source: 'ai' },
+  // 보험사 이름 패턴: 출금→보험료, 입금→보험금·환급금 (방향 검증으로 자동 처리)
+  { keyword: '한화생명', category: '보험료', source: 'ai' },
+  { keyword: '삼성생명', category: '보험료', source: 'ai' },
+  { keyword: '교보생명', category: '보험료', source: 'ai' },
+  { keyword: '흥국생명', category: '보험료', source: 'ai' },
+  { keyword: '현대해상', category: '보험료', source: 'ai' },
+  { keyword: '동부화재', category: '보험료', source: 'ai' },
+  { keyword: 'DB손해보험', category: '보험료', source: 'ai' },
+  { keyword: '메리츠', category: '보험료', source: 'ai' },
+  { keyword: '롯데손보', category: '보험료', source: 'ai' },
+
   // ── 변동비 ──
   { keyword: '배달수수료', category: '배달수수료', source: 'ai' },
+  { keyword: '플랫폼수수료', category: '배달수수료', source: 'ai' },
   { keyword: '광고비', category: '광고비', source: 'ai' },
   { keyword: '부가세', category: '세금·공과금', source: 'ai' },
+  { keyword: '재산세', category: '세금·공과금', source: 'ai' },
+  { keyword: '국민연금', category: '세금·공과금', source: 'ai' },
+  { keyword: '건강보험', category: '세금·공과금', source: 'ai' },
+  { keyword: '고용보험', category: '세금·공과금', source: 'ai' },
+  { keyword: '산재보험', category: '세금·공과금', source: 'ai' },
+  { keyword: '주유', category: '유류비·교통비', source: 'ai' }, // 사업용 주유
+
   // ── 사업외 지출: 부채/금융 ──
   { keyword: '대출원금', category: '대출원금상환', source: 'ai' },
   { keyword: '원금상환', category: '대출원금상환', source: 'ai' },
@@ -671,13 +717,23 @@ export const DEFAULT_KEYWORD_RULES: CategoryRule[] = [
   { keyword: '이자납입', category: '이자비용', source: 'ai' },
   { keyword: '카드대금', category: '신용카드대금', source: 'ai' },
   { keyword: '카드결제대금', category: '신용카드대금', source: 'ai' },
+
   // ── 사업외 지출: 개인 생활 ──
   { keyword: '병원', category: '병원·약국비', source: 'ai' },
   { keyword: '약국', category: '병원·약국비', source: 'ai' },
   { keyword: '의원', category: '병원·약국비', source: 'ai' },
-  { keyword: '주유', category: '유류비·교통비', source: 'ai' },
+  { keyword: '치과', category: '병원·약국비', source: 'ai' },
+  { keyword: '한의원', category: '병원·약국비', source: 'ai' },
   { keyword: '고속도로', category: '유류비·교통비', source: 'ai' },
   { keyword: '하이패스', category: '유류비·교통비', source: 'ai' },
-  // ── 사업외 지출: 이전/이체 ──
+  { keyword: '주차비', category: '유류비·교통비', source: 'ai' },
+  { keyword: '버스', category: '유류비·교통비', source: 'ai' },
+  { keyword: '지하철', category: '유류비·교통비', source: 'ai' },
+  { keyword: '택시', category: '유류비·교통비', source: 'ai' },
+  { keyword: 'KTX', category: '유류비·교통비', source: 'ai' },
+
+  // ── 사업외 지출: 이전/저축 ──
   { keyword: '적금', category: '개인저축·투자', source: 'ai' },
+  { keyword: '펀드', category: '개인저축·투자', source: 'ai' },
+  { keyword: '증권', category: '개인저축·투자', source: 'ai' },
 ];

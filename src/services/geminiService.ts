@@ -55,41 +55,58 @@ export const categorizeTransactions = async (
   
   for (let i = 0; i < transactions.length; i += batchSize) {
     const batch = transactions.slice(i, i + batchSize);
+    const incomeCategories = categories.filter(c => c.level1 === '수입').map(c => c.name).join(', ');
+    const expenseCategories = categories.filter(c => c.level1 === '지출').map(c => c.name).join(', ');
+
     const prompt = `
-당신은 소상공인 사업장의 통장 거래를 분류하는 전문가입니다.
-아래 사업장 정보와 카테고리 목록을 참고하여 각 거래를 가장 적절한 카테고리로 분류해주세요.
+당신은 소상공인 사업장의 통장 거래를 분류하는 전문 회계사입니다.
 
 [사업장 정보]
-업종: ${businessInfo.type}
-취급품목: ${businessInfo.items}
-규모: ${businessInfo.businessScale || '소규모'}
-배달플랫폼: ${businessInfo.onlinePlatforms || '없음'}
+업종: ${businessInfo.type} | 품목: ${businessInfo.items}
+규모: ${businessInfo.businessScale || '소규모'} | 배달플랫폼: ${businessInfo.onlinePlatforms || '없음'}
 원재료 매입처: ${businessInfo.rawMaterialSuppliers || '미상'}
 
-[카테고리 목록]
-${categories.map(c => `${c.name} (${c.level2}${c.costGroup ? ', ' + c.costGroup : ''})`).join(', ')}
+[카테고리 - 방향별 분리]
+▶ 수입 카테고리(입금 거래에만 사용 가능): ${incomeCategories}
+▶ 지출 카테고리(출금 거래에만 사용 가능): ${expenseCategories}
 
-[분류 원칙]
-- 입금(credit>0)은 반드시 수입 카테고리(영업 수익 또는 영업외 수익)로
-- 출금(debit>0)은 반드시 지출 카테고리(영업 비용 또는 사업외 지출)로
-- 배달의민족/쿠팡이츠/요기요 입금 → 배달매출, 출금 → 배달수수료
-- 카드매출/카드정산/VAN → 카드매출
-- 제로페이/지역사랑상품권 → 지역화폐
-- 네이버페이/카카오페이/토스 → 간편결제
-- 스마트스토어/쿠팡판매/11번가 → 입점몰매출
-- 급여이체/알바비 → 인건비 카테고리
-- 대출실행/한도대출 입금 → 차입금 (영업외 수익)
-- 원금상환/대출이자 출금 → 대출원금상환 또는 이자비용 (사업외 지출)
-- 카드대금 출금 → 신용카드대금 (사업외 지출)
-- 병원/약국 출금 → 병원·약국비 (사업외 지출)
-- 주유/하이패스 출금 → 유류비·교통비 (사업외 지출)
-- 원재료 매입처와 유사한 거래처 → 재료비 카테고리
-- 모르겠으면 입금은 기타매출, 출금은 기타사업비
+[분류 원칙 - 반드시 준수]
+★ 절대 규칙: 입금→수입 카테고리, 출금→지출 카테고리. 절대 혼용 금지.
+  (이를 어기면 손익 계산 전체가 틀어짐)
 
-[거래 내역]
-${batch.map(t => `ID:${t.id} | ${t.description} | 출금:${t.debit.toLocaleString()} | 입금:${t.credit.toLocaleString()}`).join('\n')}
+★ 매출 패턴:
+- 배달의민족·쿠팡이츠·요기요 입금 → 배달매출 / 출금 → 배달수수료
+- VAN정산·카드정산·POS정산 입금 → 카드매출
+- 네이버페이·카카오페이·토스 입금 → 간편결제
+- 제로페이·지역사랑상품권 입금 → 지역화폐
+- 스마트스토어·쿠팡판매·11번가 입금 → 입점몰매출
 
-반드시 JSON 배열 형식으로만 응답: [{"id": "거래ID", "category": "카테고리명"}]
+★ 환급·환불 입금 (반드시 수입 카테고리):
+- "환급", "환불", "수수료환급", "우대환급", "KB환급", "삼성환급" 등 → 보험금·환급금
+- "정부지원", "지원금", "보조금", "배달택배비지원" → 정부지원금
+- "예금이자", "적금이자" → 이자수익
+
+★ 보험사 패턴:
+- "한화생명", "삼성생명" 등 + 출금 → 보험료 (지출)
+- "한화생명", "삼성생명" 등 + 입금 → 보험금·환급금 (수입)
+
+★ 대출/금융:
+- "대출실행", "한도대출" 입금 → 차입금
+- "원금상환", "대출이자" 출금 → 대출원금상환 / 이자비용
+- "카드대금" 출금 → 신용카드대금
+
+★ 개인 지출:
+- 병원·치과·약국 출금 → 병원·약국비
+- 주유·하이패스·고속도로 출금 → 유류비·교통비
+
+★ 판단 불가 폴백:
+- 입금이고 위 패턴 해당 없음 → 기타매출 (수입 카테고리 확인 필수)
+- 출금이고 위 패턴 해당 없음 → 기타사업비 (지출 카테고리 확인 필수)
+
+[거래 내역] (ID | 적요 | 출금 | 입금)
+${batch.map(t => `${t.id} | ${t.description} | 출금:${t.debit > 0 ? t.debit.toLocaleString() : '-'} | 입금:${t.credit > 0 ? t.credit.toLocaleString() : '-'}`).join('\n')}
+
+JSON 배열로만 응답: [{"id":"거래ID","category":"카테고리명"}]
     `;
 
     try {
