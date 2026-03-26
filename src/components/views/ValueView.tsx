@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import FormattedNumberInput from '../FormattedNumberInput';
 import { motion } from 'framer-motion';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Transaction, BusinessInfo, Category } from '../../types';
@@ -241,10 +242,9 @@ const ValueView: React.FC<Props> = ({ transactions, businessInfo, pendingPdfDown
                   <div key={item.label} className="space-y-2">
                     <label className="text-xs font-bold text-text-muted">{item.label}</label>
                     <div className="relative">
-                      <input
-                        type="number"
+                      <FormattedNumberInput
                         value={item.value}
-                        onChange={e => item.setter(Number(e.target.value))}
+                        onChange={n => item.setter(n)}
                         className="w-full bg-surface-subtle border border-border-color rounded-xl px-4 py-3 font-bold text-text-primary text-right pr-10"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-xs">원</span>

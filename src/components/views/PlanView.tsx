@@ -2,6 +2,7 @@ import React, { useState, useMemo, useId } from 'react';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
 import { StartupCostItem, ProfitSimulation } from '../../types';
+import FormattedNumberInput from '../FormattedNumberInput';
 
 const fmt = (n: number) => n >= 10000 ? `${(n / 10000).toFixed(0)}만원` : `${n.toLocaleString()}원`;
 const fmtFull = (n: number) => n.toLocaleString('ko-KR') + '원';
@@ -185,11 +186,10 @@ const PlanView: React.FC = () => {
                 {startupCosts.filter(item => item.category === cat).map(item => (
                   <div key={item.id} className="flex items-center gap-3 p-3 bg-surface-subtle rounded-xl border border-border-color/50 mb-2 group">
                     <span className="flex-1 font-bold text-text-primary text-sm">{item.name}</span>
-                    <input
-                      type="number"
+                    <FormattedNumberInput
                       value={item.amount}
-                      onChange={(e) => setStartupCosts(prev => prev.map(i => i.id === item.id ? { ...i, amount: Number(e.target.value) } : i))}
-                      className="w-32 bg-white border border-border-color rounded-lg px-3 py-1.5 text-right font-bold text-text-primary text-sm focus:ring-2 focus:ring-brand-accent transition-all"
+                      onChange={(n) => setStartupCosts(prev => prev.map(i => i.id === item.id ? { ...i, amount: n } : i))}
+                      className="w-36 bg-white border border-border-color rounded-lg px-3 py-1.5 text-right font-bold text-text-primary text-sm focus:ring-2 focus:ring-brand-accent transition-all"
                     />
                     <span className="text-xs text-text-muted">원</span>
                     <button
@@ -222,11 +222,10 @@ const PlanView: React.FC = () => {
                   onChange={e => setNewItemName(e.target.value)}
                   className="w-full border border-border-color rounded-xl px-3 py-2 text-sm bg-white"
                 />
-                <input
-                  type="number"
+                <FormattedNumberInput
+                  value={newItemAmount}
+                  onChange={n => setNewItemAmount(n)}
                   placeholder="금액 (원)"
-                  value={newItemAmount || ''}
-                  onChange={e => setNewItemAmount(Number(e.target.value))}
                   className="w-full border border-border-color rounded-xl px-3 py-2 text-sm bg-white text-right"
                 />
                 <div className="flex gap-2">
@@ -287,10 +286,9 @@ const PlanView: React.FC = () => {
             <label className="block">
               <span className="text-sm font-bold text-text-primary mb-2 block">월 예상 매출액</span>
               <div className="relative">
-                <input
-                  type="number"
+                <FormattedNumberInput
                   value={simulation.monthlyRevenue}
-                  onChange={e => updateSimulation('monthlyRevenue', Number(e.target.value))}
+                  onChange={n => updateSimulation('monthlyRevenue', n)}
                   className="w-full bg-brand-primary/5 border-2 border-brand-primary/20 rounded-2xl px-4 py-4 text-2xl font-black text-brand-primary focus:ring-4 focus:ring-brand-primary/10 transition-all text-right pr-12"
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-brand-primary">원</span>
@@ -314,10 +312,9 @@ const PlanView: React.FC = () => {
                       {simulation.monthlyRevenue > 0 ? `${(Number(simulation[item.field as keyof ProfitSimulation]) / simulation.monthlyRevenue * 100).toFixed(0)}%` : '-'}
                     </span>
                   </div>
-                  <input
-                    type="number"
-                    value={simulation[item.field as keyof ProfitSimulation]}
-                    onChange={e => updateSimulation(item.field as keyof ProfitSimulation, Number(e.target.value))}
+                  <FormattedNumberInput
+                    value={Number(simulation[item.field as keyof ProfitSimulation])}
+                    onChange={n => updateSimulation(item.field as keyof ProfitSimulation, n)}
                     className="w-full bg-white border border-border-color rounded-lg px-3 py-2 text-right font-bold text-text-primary text-sm focus:ring-2 focus:ring-brand-accent transition-all"
                   />
                 </div>
