@@ -8,6 +8,7 @@ interface Props {
   businessInfo: BusinessInfo;
   categories: Category[];
   onUpdateTransaction: (updatedTx: Transaction) => void;
+  onBulkUpdateTransactions?: (updates: { id: string; category: string }[]) => void;
 }
 
 // 항상 세자리마다 쉼표 표시 (자릿수 혼동 방지)
@@ -22,7 +23,7 @@ const LEVEL2_OPTIONS = [
   { key: '사업외 지출', label: '사업외 지출' },
 ];
 
-const TransactionsView: React.FC<Props> = ({ transactions, businessInfo, categories, onUpdateTransaction }) => {
+const TransactionsView: React.FC<Props> = ({ transactions, businessInfo, categories, onUpdateTransaction, onBulkUpdateTransactions }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLevel2, setSelectedLevel2] = useState<string>('전체');
   const [selectedCategory, setSelectedCategory] = useState<string>('전체');
@@ -239,6 +240,7 @@ const TransactionsView: React.FC<Props> = ({ transactions, businessInfo, categor
           transactions={filteredTransactions}
           categories={categories}
           onUpdateTransaction={onUpdateTransaction}
+          onBulkUpdateTransactions={onBulkUpdateTransactions}
         />
       </div>
     </div>

@@ -120,34 +120,44 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
     URL.revokeObjectURL(url);
   }, [businessInfo, uploadedFiles, transactions, categories, categoryRules]);
 
-  const applyRules = useCallback((txList: Transaction[], ruleList: CategoryRule[]): Transaction[] => {
+  // 카테고리가 거래 방향(입금/출금)과 일치하는지 검증.
+  // catLookup에 없는 사용자 커스텀 카테고리는 검증 생략 (사용자가 직접 배정한 것으로 신뢰).
+  const validateDirection = useCallback((catName: string, isIncome: boolean, allCategories: Category[]): boolean => {
+      const catInfo = CATEGORY_MAP[catName] ?? allCategories.find(c => c.name === catName);
+      if (!catInfo) return true; // 정보 없으면 통과
+      const catIsIncome = catInfo.level1 === '수입';
+      return catIsIncome === isIncome;
+  }, []);
+
+  const applyRules = useCallback((txList: Transaction[], ruleList: CategoryRule[], allCategories: Category[] = []): Transaction[] => {
       return txList.map(tx => {
+          const isIncome = tx.credit > 0;
           const matchingRule = ruleList
               .filter(rule => tx.description.toLowerCase().includes(rule.keyword.toLowerCase()))
               .sort((a, b) => b.keyword.length - a.keyword.length)[0];
 
           if (matchingRule) {
-              const isIncome = tx.credit > 0;
-              // 수동 규칙은 사용자가 드롭다운에서 직접 선택한 유효한 카테고리명이므로 정규화 생략
               const normalizedCategory = matchingRule.source === 'manual'
                   ? matchingRule.category
                   : normalizeCategoryName(matchingRule.category, isIncome);
+
+              // 방향 불일치 검증: 입금인데 지출 카테고리, 또는 출금인데 수입 카테고리면 규칙 무시
+              if (!validateDirection(normalizedCategory, isIncome, allCategories)) {
+                  return { ...tx, category: isIncome ? DEFAULT_CATEGORY_INCOME : DEFAULT_CATEGORY_EXPENSE };
+              }
               return { ...tx, category: normalizedCategory };
           }
 
-          // 파서에서 초기값으로 부여된 '미분류'를 적절한 기본 카테고리로 변환하여
-          // AI 분류 단계(runClassification)에서 처리될 수 있도록 함
           if (tx.category === '미분류') {
-              const isIncome = tx.credit > 0;
               return { ...tx, category: isIncome ? DEFAULT_CATEGORY_INCOME : DEFAULT_CATEGORY_EXPENSE };
           }
 
           return tx;
       });
-  }, []);
+  }, [validateDirection]);
 
   const runClassification = useCallback(async (txsToClassify: Transaction[], currentRules: CategoryRule[], allCategories: Category[], info: BusinessInfo) => {
-      let classifiedTxs = applyRules(txsToClassify, currentRules);
+      let classifiedTxs = applyRules(txsToClassify, currentRules, allCategories);
       const uncategorizedAfterRules = classifiedTxs.filter(t => t.category === DEFAULT_CATEGORY_INCOME || t.category === DEFAULT_CATEGORY_EXPENSE);
 
       if (uncategorizedAfterRules.length > 0 && allCategories.length > 0) {
@@ -156,7 +166,13 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
               classifiedTxs = classifiedTxs.map(tx => {
                   const aiCategory = categorizedMap[tx.id];
                   if (aiCategory) {
-                      return { ...tx, category: normalizeCategoryName(aiCategory, tx.credit > 0) };
+                      const isIncome = tx.credit > 0;
+                      const normalized = normalizeCategoryName(aiCategory, isIncome);
+                      // AI 결과도 방향 검증: 불일치 시 기본 카테고리로 교정
+                      if (!validateDirection(normalized, isIncome, allCategories)) {
+                          return { ...tx, category: isIncome ? DEFAULT_CATEGORY_INCOME : DEFAULT_CATEGORY_EXPENSE };
+                      }
+                      return { ...tx, category: normalized };
                   }
                   return tx;
               });
@@ -164,9 +180,9 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
               console.error("AI categorization failed, using rule-based results.", e);
           }
       }
-      
+
       setTransactions(classifiedTxs);
-  }, [applyRules]);
+  }, [applyRules, validateDirection]);
 
 
   // Initial setup effect: Check for saved data. If none, generate categories for review.
@@ -346,7 +362,7 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
         }
         
         if (shouldReclassify) {
-            setTransactions(prevTxs => applyRules(prevTxs, updatedRules));
+            setTransactions(prevTxs => applyRules(prevTxs, updatedRules, categories));
         }
         return updatedRules;
     });
@@ -356,9 +372,8 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
     setTransactions(currentTxs => {
         const originalTx = currentTxs.find(t => t.id === updatedTx.id);
         const updatedTransactions = currentTxs.map(tx => (tx.id === updatedTx.id ? updatedTx : tx));
-        
+
         if (originalTx && originalTx.category !== updatedTx.category) {
-            // Learn from manual change: create a rule for this description
             const newRule: CategoryRule = { keyword: updatedTx.description, category: updatedTx.category, source: 'manual' };
             setCategoryRules(prevRules => {
                 const ruleExists = prevRules.some(r => r.keyword.toLowerCase() === newRule.keyword.toLowerCase());
@@ -367,7 +382,6 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
                 }
                 return [...prevRules, newRule];
             });
-             // Also apply this change to other similar transactions
             return updatedTransactions.map(t =>
                 t.description === updatedTx.description
                     ? { ...t, category: updatedTx.category }
@@ -375,6 +389,20 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
             );
         }
         return updatedTransactions;
+    });
+  };
+
+  // 여러 거래를 한 번에 카테고리 변경 (다중선택 일괄 변경용)
+  const handleBulkUpdateTransactions = (updates: { id: string; category: string }[]) => {
+    setTransactions(currentTxs => {
+        const updateMap = new Map(updates.map(u => [u.id, u.category]));
+        return currentTxs.map(tx => {
+            const newCat = updateMap.get(tx.id);
+            if (newCat && newCat !== tx.category) {
+                return { ...tx, category: newCat };
+            }
+            return tx;
+        });
     });
   };
   
@@ -508,7 +536,7 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
       case 'dashboard':
         return <DashboardView {...commonProps} pendingPdfDownload={pendingPdfDownload} onPdfDownloadConsumed={onPdfDownloadConsumed} />;
       case 'transactions':
-        return <TransactionsView {...commonProps} onUpdateTransaction={handleUpdateTransaction}/>;
+        return <TransactionsView {...commonProps} onUpdateTransaction={handleUpdateTransaction} onBulkUpdateTransactions={handleBulkUpdateTransactions}/>;
       case 'data-sources':
         return <DataSourcesView businessInfo={businessInfo} uploadedFiles={uploadedFiles} transactions={transactions} categories={categories} />;
       case 'deep-dive':
@@ -541,6 +569,7 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
                   onAddRule={handleAddRule}
                   onDeleteRule={handleDeleteRule}
                   onUpdateTransaction={handleUpdateTransaction}
+                  onBulkUpdateTransactions={handleBulkUpdateTransactions}
                 />;
       default:
         return <DashboardView {...commonProps} />;
