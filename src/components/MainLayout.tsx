@@ -372,9 +372,8 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
     setTransactions(currentTxs => {
         const originalTx = currentTxs.find(t => t.id === updatedTx.id);
         const updatedTransactions = currentTxs.map(tx => (tx.id === updatedTx.id ? updatedTx : tx));
-        
+
         if (originalTx && originalTx.category !== updatedTx.category) {
-            // Learn from manual change: create a rule for this description
             const newRule: CategoryRule = { keyword: updatedTx.description, category: updatedTx.category, source: 'manual' };
             setCategoryRules(prevRules => {
                 const ruleExists = prevRules.some(r => r.keyword.toLowerCase() === newRule.keyword.toLowerCase());
@@ -383,7 +382,6 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
                 }
                 return [...prevRules, newRule];
             });
-             // Also apply this change to other similar transactions
             return updatedTransactions.map(t =>
                 t.description === updatedTx.description
                     ? { ...t, category: updatedTx.category }
@@ -391,6 +389,20 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
             );
         }
         return updatedTransactions;
+    });
+  };
+
+  // 여러 거래를 한 번에 카테고리 변경 (다중선택 일괄 변경용)
+  const handleBulkUpdateTransactions = (updates: { id: string; category: string }[]) => {
+    setTransactions(currentTxs => {
+        const updateMap = new Map(updates.map(u => [u.id, u.category]));
+        return currentTxs.map(tx => {
+            const newCat = updateMap.get(tx.id);
+            if (newCat && newCat !== tx.category) {
+                return { ...tx, category: newCat };
+            }
+            return tx;
+        });
     });
   };
   
@@ -524,7 +536,7 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
       case 'dashboard':
         return <DashboardView {...commonProps} pendingPdfDownload={pendingPdfDownload} onPdfDownloadConsumed={onPdfDownloadConsumed} />;
       case 'transactions':
-        return <TransactionsView {...commonProps} onUpdateTransaction={handleUpdateTransaction}/>;
+        return <TransactionsView {...commonProps} onUpdateTransaction={handleUpdateTransaction} onBulkUpdateTransactions={handleBulkUpdateTransactions}/>;
       case 'data-sources':
         return <DataSourcesView businessInfo={businessInfo} uploadedFiles={uploadedFiles} transactions={transactions} categories={categories} />;
       case 'deep-dive':
@@ -557,6 +569,7 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
                   onAddRule={handleAddRule}
                   onDeleteRule={handleDeleteRule}
                   onUpdateTransaction={handleUpdateTransaction}
+                  onBulkUpdateTransactions={handleBulkUpdateTransactions}
                 />;
       default:
         return <DashboardView {...commonProps} />;

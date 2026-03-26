@@ -6,12 +6,11 @@ interface Props {
   transactions: Transaction[];
   categories: Category[];
   onUpdateTransaction: (transaction: Transaction) => void;
+  onBulkUpdateTransactions?: (updates: { id: string; category: string }[]) => void;
 }
 
-// 항상 세자리마다 쉼표 표시 (자릿수 혼동 방지)
 const fmt = (v: number) => v.toLocaleString('ko-KR');
 
-// costGroup 서브그룹 (영업 비용 내에서만 사용)
 const COST_GROUP_ORDER = ['인건비', '재료비', '고정비', '변동비'];
 
 interface CategoryCellProps {
@@ -20,18 +19,15 @@ interface CategoryCellProps {
   onUpdate: (txId: string, newCategory: string) => void;
 }
 
-// 세부 카테고리만 표시하는 단일 드롭다운 (optgroup으로 대분류 구분)
 const CategoryCell: React.FC<CategoryCellProps> = ({ tx, categories, onUpdate }) => {
   const isIncome = tx.credit > 0;
   const isUnclassified = tx.category === '기타매출' || tx.category === '기타사업비';
 
-  // 입금/출금에 맞는 카테고리만
   const relevantCats = useMemo(() =>
     categories.filter(c => isIncome ? c.type.includes('income') : c.type.includes('expense')),
     [categories, isIncome]
   );
 
-  // 대분류별 그룹화
   const grouped = useMemo(() => {
     const map: Record<string, Category[]> = {};
     relevantCats.forEach(c => {
@@ -46,31 +42,22 @@ const CategoryCell: React.FC<CategoryCellProps> = ({ tx, categories, onUpdate })
     ? ['영업 수익', '영업외 수익']
     : ['영업 비용', '사업외 지출'];
 
-  const handleChange = (newCat: string) => {
-    onUpdate(tx.id, newCat);
-  };
-
-  // 현재 선택값: 해당 카테고리가 목록에 없으면 tx.category 그대로 표시
-  const currentValue = tx.category;
-
   return (
     <div className="flex flex-col gap-0.5 min-w-[150px]">
       <select
-        value={currentValue}
-        onChange={(e) => handleChange(e.target.value)}
+        value={tx.category}
+        onChange={(e) => onUpdate(tx.id, e.target.value)}
         className={`border rounded-lg px-2 py-0.5 text-sm font-medium cursor-pointer transition-all focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary ${
           isUnclassified
             ? 'border-amber-300 bg-amber-50 text-amber-800 font-bold'
             : 'border-border-color bg-surface-subtle text-text-primary'
         }`}
       >
-        {/* 현재 값이 목록에 없으면 임시 옵션으로 표시 */}
-        {!relevantCats.some(c => c.name === currentValue) && (
-          <option value={currentValue}>{currentValue}</option>
+        {!relevantCats.some(c => c.name === tx.category) && (
+          <option value={tx.category}>{tx.category}</option>
         )}
         {groupOrder.filter(g => grouped[g]?.length > 0).map(grp => {
           if (grp === '영업 비용') {
-            // costGroup 서브그룹
             const subGrouped: Record<string, Category[]> = {};
             COST_GROUP_ORDER.forEach(g => { subGrouped[g] = []; });
             subGrouped['기타'] = [];
@@ -103,15 +90,16 @@ const CategoryCell: React.FC<CategoryCellProps> = ({ tx, categories, onUpdate })
   );
 };
 
-const TransactionsTable: React.FC<Props> = ({ transactions, categories, onUpdateTransaction }) => {
+const TransactionsTable: React.FC<Props> = ({ transactions, categories, onUpdateTransaction, onBulkUpdateTransactions }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(30);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkCategory, setBulkCategory] = useState('');
 
-  // 거래 ID 목록이 바뀔 때만 (새 데이터 로드, 필터 변경) 첫 페이지로 이동
-  // 카테고리 수정처럼 ID 목록이 동일할 때는 페이지 유지
   const txIdsKey = useMemo(() => transactions.map(t => t.id).join(','), [transactions]);
   useEffect(() => {
     setCurrentPage(1);
+    setSelectedIds(new Set());
   }, [txIdsKey]);
 
   const paginatedTransactions = useMemo(() => {
@@ -126,6 +114,50 @@ const TransactionsTable: React.FC<Props> = ({ transactions, categories, onUpdate
     if (txToUpdate) {
       onUpdateTransaction({ ...txToUpdate, category: newCategory });
     }
+  };
+
+  // 다중선택 처리
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const isAllPageSelected = paginatedTransactions.length > 0 &&
+    paginatedTransactions.every(t => selectedIds.has(t.id));
+
+  const toggleSelectAll = () => {
+    if (isAllPageSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        paginatedTransactions.forEach(t => next.delete(t.id));
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        paginatedTransactions.forEach(t => next.add(t.id));
+        return next;
+      });
+    }
+  };
+
+  const handleBulkApply = () => {
+    if (!bulkCategory || selectedIds.size === 0) return;
+    if (onBulkUpdateTransactions) {
+      const updates = Array.from(selectedIds).map(id => ({ id, category: bulkCategory }));
+      onBulkUpdateTransactions(updates);
+    } else {
+      selectedIds.forEach(id => {
+        const tx = transactions.find(t => t.id === id);
+        if (tx) onUpdateTransaction({ ...tx, category: bulkCategory });
+      });
+    }
+    setSelectedIds(new Set());
+    setBulkCategory('');
   };
 
   const formatDate = (date: Date) =>
@@ -145,12 +177,77 @@ const TransactionsTable: React.FC<Props> = ({ transactions, categories, onUpdate
     return Array.from({ length: end - start + 1 }, (_, i) => start + i);
   }, [currentPage, totalPages]);
 
+  // 일괄변경 카테고리 드롭다운용 그룹 (선택된 항목의 방향 혼재 시 전체 표시)
+  const selectedTxs = useMemo(() => transactions.filter(t => selectedIds.has(t.id)), [transactions, selectedIds]);
+  const hasIncome = selectedTxs.some(t => t.credit > 0);
+  const hasExpense = selectedTxs.some(t => t.debit > 0);
+  const bulkCats = useMemo(() => {
+    if (hasIncome && !hasExpense) return categories.filter(c => c.type.includes('income'));
+    if (hasExpense && !hasIncome) return categories.filter(c => c.type.includes('expense'));
+    return categories;
+  }, [categories, hasIncome, hasExpense]);
+
   return (
     <div className="bg-white rounded-2xl overflow-hidden">
+      {/* 일괄변경 바 */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-brand-primary/5 border-b border-brand-primary/20">
+          <span className="text-sm font-bold text-brand-primary">
+            {selectedIds.size}건 선택됨
+          </span>
+          <select
+            value={bulkCategory}
+            onChange={(e) => setBulkCategory(e.target.value)}
+            className="flex-1 max-w-[220px] py-1.5 px-3 border border-brand-primary/30 rounded-xl bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+          >
+            <option value="">카테고리 선택...</option>
+            {['영업 수익', '영업외 수익'].filter(() => hasIncome || (!hasIncome && !hasExpense)).map(grp => {
+              const cats = bulkCats.filter(c => c.level2 === grp);
+              if (!cats.length) return null;
+              return (
+                <optgroup key={grp} label={grp}>
+                  {cats.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </optgroup>
+              );
+            })}
+            {['영업 비용', '사업외 지출'].filter(() => hasExpense || (!hasIncome && !hasExpense)).map(grp => {
+              const cats = bulkCats.filter(c => c.level2 === grp);
+              if (!cats.length) return null;
+              return (
+                <optgroup key={grp} label={grp}>
+                  {cats.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </optgroup>
+              );
+            })}
+          </select>
+          <button
+            onClick={handleBulkApply}
+            disabled={!bulkCategory}
+            className="px-4 py-1.5 bg-brand-primary text-white rounded-xl text-sm font-bold disabled:opacity-40 hover:bg-brand-secondary transition-colors"
+          >
+            일괄 변경
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="px-3 py-1.5 border border-border-color text-sm font-bold text-text-muted rounded-xl hover:bg-surface-subtle transition-colors"
+          >
+            선택 해제
+          </button>
+        </div>
+      )}
+
       <div className="overflow-x-auto custom-scrollbar">
         <table className="min-w-full divide-y divide-border-color">
           <thead className="bg-surface-subtle">
             <tr>
+              <th className="px-3 py-3 w-8">
+                <input
+                  type="checkbox"
+                  checked={isAllPageSelected}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded border-border-color text-brand-primary cursor-pointer accent-brand-primary"
+                />
+              </th>
               <th className="px-4 py-3 text-left text-xs font-bold text-text-muted uppercase tracking-wider">거래일시</th>
               <th className="px-4 py-3 text-left text-xs font-bold text-text-muted uppercase tracking-wider">적요</th>
               <th className="px-4 py-3 text-right text-xs font-bold text-text-muted uppercase tracking-wider">출금액</th>
@@ -162,12 +259,33 @@ const TransactionsTable: React.FC<Props> = ({ transactions, categories, onUpdate
           <tbody className="bg-white divide-y divide-border-color/40">
             {paginatedTransactions.map((tx) => {
               const isUnclassified = tx.category === '기타매출' || tx.category === '기타사업비';
+              const isSelected = selectedIds.has(tx.id);
 
               return (
                 <tr
                   key={tx.id}
-                  className={`hover:bg-surface-subtle/60 transition-colors ${isUnclassified ? 'bg-amber-50/40' : ''}`}
+                  onClick={(e) => {
+                    // checkbox 클릭이 아닌 행 클릭 시 선택 토글
+                    if ((e.target as HTMLElement).tagName !== 'SELECT' &&
+                        (e.target as HTMLElement).tagName !== 'OPTION' &&
+                        (e.target as HTMLElement).tagName !== 'INPUT') {
+                      toggleSelect(tx.id);
+                    }
+                  }}
+                  className={`hover:bg-surface-subtle/60 transition-colors cursor-pointer ${
+                    isSelected ? 'bg-brand-primary/5 ring-1 ring-inset ring-brand-primary/20' :
+                    isUnclassified ? 'bg-amber-50/40' : ''
+                  }`}
                 >
+                  <td className="px-3 py-1 w-8">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelect(tx.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-4 h-4 rounded border-border-color text-brand-primary cursor-pointer accent-brand-primary"
+                    />
+                  </td>
                   <td className="px-4 py-1 whitespace-nowrap text-sm font-medium text-text-primary">
                     {formatDate(tx.date)}
                   </td>
@@ -185,7 +303,7 @@ const TransactionsTable: React.FC<Props> = ({ transactions, categories, onUpdate
                   <td className="px-4 py-1 whitespace-nowrap text-sm text-right text-text-muted font-medium">
                     {tx.balance > 0 ? fmt(tx.balance) : '-'}
                   </td>
-                  <td className="px-4 py-1 whitespace-nowrap">
+                  <td className="px-4 py-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     <CategoryCell
                       tx={tx}
                       categories={categories}
@@ -208,6 +326,9 @@ const TransactionsTable: React.FC<Props> = ({ transactions, categories, onUpdate
       <nav className="flex flex-col sm:flex-row items-center justify-between border-t border-border-color px-5 py-3 bg-white gap-3">
         <div className="flex items-center gap-3 text-sm text-text-muted font-medium">
           <span>전체 {transactions.length.toLocaleString()}건</span>
+          {selectedIds.size > 0 && (
+            <span className="text-brand-primary font-bold">{selectedIds.size}건 선택</span>
+          )}
           <div className="flex items-center gap-2">
             <label className="text-xs font-bold text-text-muted">페이지당:</label>
             <select
@@ -227,16 +348,12 @@ const TransactionsTable: React.FC<Props> = ({ transactions, categories, onUpdate
               onClick={() => setCurrentPage(1)}
               disabled={currentPage === 1}
               className="px-2 py-1.5 border border-border-color text-sm font-bold rounded-lg text-text-primary bg-white hover:bg-surface-subtle disabled:opacity-40 transition-colors"
-            >
-              «
-            </button>
+            >«</button>
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
               className="px-3 py-1.5 border border-border-color text-sm font-bold rounded-lg text-text-primary bg-white hover:bg-surface-subtle disabled:opacity-40 transition-colors"
-            >
-              이전
-            </button>
+            >이전</button>
             <div className="flex items-center gap-1">
               {pageButtons.map(page => (
                 <button
@@ -247,25 +364,19 @@ const TransactionsTable: React.FC<Props> = ({ transactions, categories, onUpdate
                       ? 'bg-brand-primary text-white'
                       : 'border border-border-color text-text-muted hover:bg-surface-subtle'
                   }`}
-                >
-                  {page}
-                </button>
+                >{page}</button>
               ))}
             </div>
             <button
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
               className="px-3 py-1.5 border border-border-color text-sm font-bold rounded-lg text-text-primary bg-white hover:bg-surface-subtle disabled:opacity-40 transition-colors"
-            >
-              다음
-            </button>
+            >다음</button>
             <button
               onClick={() => setCurrentPage(totalPages)}
               disabled={currentPage === totalPages}
               className="px-2 py-1.5 border border-border-color text-sm font-bold rounded-lg text-text-primary bg-white hover:bg-surface-subtle disabled:opacity-40 transition-colors"
-            >
-              »
-            </button>
+            >»</button>
           </div>
         )}
       </nav>
