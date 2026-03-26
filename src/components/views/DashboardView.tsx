@@ -173,41 +173,45 @@ function calcPL(txs: Transaction[], catLookup: Record<string, Category>) {
 // ── 3단계 손익 요약 카드 ──
 const SummaryBlock: React.FC<{
   badge: string;
-  title: string;
-  subtitle: string;
-  left: { label: string; value: number; color: string };
-  right: { label: string; value: number; color: string };
-  result: { label: string; value: number };
-  bgClass: string;
-}> = ({ badge, title, subtitle, left, right, result, bgClass }) => {
-  const isPos = result.value >= 0;
+  badgeBg: string;
+  label: string;
+  subLabel: string;
+  result: number;
+  left: { label: string; value: number };
+  right: { label: string; value: number };
+  borderClass: string;
+  profitRate?: string;
+}> = ({ badge, badgeBg, label, subLabel, result, left, right, borderClass, profitRate }) => {
+  const isPos = result >= 0;
   return (
-    <div className={`rounded-2xl border p-5 flex flex-col gap-3 ${bgClass}`}>
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-black px-2 py-0.5 rounded-full bg-white/60 text-text-primary">{badge}</span>
-        <div>
-          <p className="text-sm font-bold text-text-primary leading-tight">{title}</p>
-          <p className="text-xs text-text-muted">{subtitle}</p>
-        </div>
+    <div className={`rounded-2xl border-2 bg-white p-5 flex flex-col gap-3 shadow-sm ${borderClass}`}>
+      {/* 헤더 */}
+      <div className="flex items-center justify-between">
+        <span className={`text-xs font-black px-2.5 py-1 rounded-lg text-white ${badgeBg}`}>{badge}</span>
+        <span className="text-xs text-text-muted font-medium">{subLabel}</span>
       </div>
-      {/* 계산식 */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="text-center">
-          <p className="text-[10px] font-bold text-text-muted uppercase">{left.label}</p>
-          <p className={`text-base font-black ${left.color}`}>{fmtM(left.value)}</p>
-        </div>
-        <span className="text-text-muted font-bold">-</span>
-        <div className="text-center">
-          <p className="text-[10px] font-bold text-text-muted uppercase">{right.label}</p>
-          <p className={`text-base font-black ${right.color}`}>{fmtM(right.value)}</p>
-        </div>
-        <span className="text-text-muted font-bold">=</span>
-        <div className="text-center flex-1">
-          <p className="text-[10px] font-bold text-text-muted uppercase">{result.label}</p>
-          <p className={`text-xl font-black ${isPos ? 'text-emerald-600' : 'text-red-600'}`}>
-            {isPos ? '+' : ''}{fmtM(result.value)}
-          </p>
-        </div>
+      {/* 핵심 숫자 */}
+      <div>
+        <p className="text-xs font-bold text-text-muted mb-1">{label}</p>
+        <p className={`text-2xl font-black tracking-tight ${isPos ? 'text-emerald-600' : 'text-red-500'}`}>
+          {isPos ? '+' : ''}{fmtM(result)}
+        </p>
+        {profitRate !== undefined && (
+          <p className="text-xs text-text-muted mt-0.5">순이익률 <strong className="text-brand-primary">{profitRate}%</strong></p>
+        )}
+      </div>
+      {/* 보조 수치 */}
+      <div className="border-t border-border-color/50 pt-2 flex items-center justify-between">
+        <span className="flex items-center gap-1 text-xs">
+          <span className="text-emerald-500 font-black">▲</span>
+          <span className="text-text-muted">{left.label}</span>
+          <span className="font-bold text-text-primary">{fmtM(left.value)}</span>
+        </span>
+        <span className="flex items-center gap-1 text-xs">
+          <span className="text-red-400 font-black">▼</span>
+          <span className="text-text-muted">{right.label}</span>
+          <span className="font-bold text-text-primary">{fmtM(right.value)}</span>
+        </span>
       </div>
     </div>
   );
@@ -388,50 +392,58 @@ const DashboardView: React.FC<Props> = ({ transactions, businessInfo, categories
 
         {/* ── ① ② ③ 손익 3단계 요약 카드 ── */}
         <div>
-          <p className="text-xs font-bold text-text-muted uppercase tracking-widest mb-3 px-1">
-            손익 구조 — {periodLabel}
-          </p>
+          <p className="text-xs font-bold text-text-muted mb-3 px-1">손익 구조 — {periodLabel}</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* ① 사업 손익 */}
             <SummaryBlock
               badge="① 사업 손익"
-              title="사업매출 - 사업비용"
-              subtitle="영업 수익에서 영업 비용을 제한 순손익"
-              left={{ label: '사업 매출', value: pl.bizRevenue, color: 'text-emerald-600' }}
-              right={{ label: '사업 비용', value: pl.bizExpense, color: 'text-red-600' }}
-              result={{ label: '사업 손익', value: pl.bizProfit }}
-              bgClass="bg-emerald-50 border-emerald-200"
+              badgeBg="bg-emerald-500"
+              label="사업매출 - 사업비용"
+              subLabel="영업 순이익"
+              result={pl.bizProfit}
+              left={{ label: '매출', value: pl.bizRevenue }}
+              right={{ label: '비용', value: pl.bizExpense }}
+              borderClass="border-emerald-200"
+              profitRate={profitRate}
             />
             {/* ② 영업외 수지 */}
             <SummaryBlock
               badge="② 영업외 수지"
-              title="영업외수익 - 영업외지출"
-              subtitle="정부지원·개인입금에서 개인사비·카드대금을 제함"
-              left={{ label: '영업외 수익', value: pl.nonOpIncome, color: 'text-teal-600' }}
-              right={{ label: '사업외 지출', value: pl.nonOpExpense, color: 'text-orange-600' }}
-              result={{ label: '영업외 수지', value: pl.nonOpBalance }}
-              bgClass="bg-teal-50 border-teal-200"
+              badgeBg="bg-teal-500"
+              label="영업외수익 - 사업외지출"
+              subLabel="비사업 입출금 차액"
+              result={pl.nonOpBalance}
+              left={{ label: '영업외수익', value: pl.nonOpIncome }}
+              right={{ label: '사업외지출', value: pl.nonOpExpense }}
+              borderClass="border-teal-200"
             />
             {/* ③ 현금 종합수지 */}
-            <div className={`rounded-2xl border p-5 flex flex-col gap-3 ${pl.cashTotal >= 0 ? 'bg-brand-primary/5 border-brand-primary/30' : 'bg-red-50 border-red-300'}`}>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black px-2 py-0.5 rounded-full bg-brand-primary text-white">③ 현금 종합수지</span>
+            <div className={`rounded-2xl border-2 bg-white p-5 flex flex-col gap-3 shadow-sm ${pl.cashTotal >= 0 ? 'border-brand-primary/40' : 'border-red-300'}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black px-2.5 py-1 rounded-lg bg-brand-primary text-white">③ 현금 종합수지</span>
+                <span className="text-xs text-text-muted font-medium">① + ②</span>
               </div>
-              <p className="text-xs text-text-muted font-medium">= ① 사업손익 + ② 영업외수지<br/>통장의 실질적인 현금 증감액</p>
-              <div className="flex items-end justify-between pt-1">
-                <div>
-                  <p className="text-xs text-text-muted font-bold">① {pl.bizProfit >= 0 ? '+' : ''}{fmtM(pl.bizProfit)}</p>
-                  <p className="text-xs text-text-muted font-bold">② {pl.nonOpBalance >= 0 ? '+' : ''}{fmtM(pl.nonOpBalance)}</p>
-                </div>
-                <p className={`text-3xl font-black ${pl.cashTotal >= 0 ? 'text-brand-primary' : 'text-red-600'}`}>
+              <div>
+                <p className="text-xs font-bold text-text-muted mb-1">통장 실질 현금 증감</p>
+                <p className={`text-2xl font-black tracking-tight ${pl.cashTotal >= 0 ? 'text-brand-primary' : 'text-red-500'}`}>
                   {pl.cashTotal >= 0 ? '+' : ''}{fmtM(pl.cashTotal)}
                 </p>
               </div>
-              {pl.bizRevenue > 0 && (
-                <p className="text-xs text-text-muted border-t border-border-color pt-2 font-medium">
-                  사업 순이익률: <strong className="text-brand-primary">{profitRate}%</strong>
-                </p>
-              )}
+              <div className="border-t border-border-color/50 pt-2 flex items-center justify-between">
+                <span className="flex items-center gap-1 text-xs">
+                  <span className="text-emerald-500 font-black">①</span>
+                  <span className={`font-bold ${pl.bizProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {pl.bizProfit >= 0 ? '+' : ''}{fmtM(pl.bizProfit)}
+                  </span>
+                </span>
+                <span className="text-text-muted text-xs">+</span>
+                <span className="flex items-center gap-1 text-xs">
+                  <span className="text-teal-500 font-black">②</span>
+                  <span className={`font-bold ${pl.nonOpBalance >= 0 ? 'text-teal-600' : 'text-red-500'}`}>
+                    {pl.nonOpBalance >= 0 ? '+' : ''}{fmtM(pl.nonOpBalance)}
+                  </span>
+                </span>
+              </div>
             </div>
           </div>
         </div>
