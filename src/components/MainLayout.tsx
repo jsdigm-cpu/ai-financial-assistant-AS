@@ -619,7 +619,7 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
           </div>
 
           {activeTab === 'operate' && (
-              <nav className="w-full overflow-x-auto custom-scrollbar pb-1">
+              <nav className="w-full overflow-x-auto custom-scrollbar pb-1 flex justify-center">
                   <div className="flex items-center space-x-2 min-w-max">
                        {navItems.map(item => (
                           <button

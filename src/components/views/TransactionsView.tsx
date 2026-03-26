@@ -13,8 +13,18 @@ interface Props {
 // 항상 세자리마다 쉼표 표시 (자릿수 혼동 방지)
 const fmt = (v: number) => v.toLocaleString('ko-KR') + '원';
 
+// 대분류 목록 (고정)
+const LEVEL2_OPTIONS = [
+  { key: '전체', label: '전체 대분류' },
+  { key: '영업 수익', label: '영업 수익' },
+  { key: '영업외 수익', label: '영업외 수익' },
+  { key: '영업 비용', label: '영업 비용' },
+  { key: '사업외 지출', label: '사업외 지출' },
+];
+
 const TransactionsView: React.FC<Props> = ({ transactions, businessInfo, categories, onUpdateTransaction }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedLevel2, setSelectedLevel2] = useState<string>('전체');
   const [selectedCategory, setSelectedCategory] = useState<string>('전체');
   const [showUnclassifiedOnly, setShowUnclassifiedOnly] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
@@ -29,9 +39,39 @@ const TransactionsView: React.FC<Props> = ({ transactions, businessInfo, categor
   const totalIncome = useMemo(() => transactions.reduce((s, t) => s + t.credit, 0), [transactions]);
   const totalExpense = useMemo(() => transactions.reduce((s, t) => s + t.debit, 0), [transactions]);
 
+  // 선택된 대분류에 속하는 세부 카테고리 목록
+  const filteredCategoryOptions = useMemo(() => {
+    const catLookup = { ...CATEGORY_MAP } as Record<string, { level2: string }>;
+    categories.forEach(c => { catLookup[c.name] = c; });
+
+    if (selectedLevel2 === '전체') {
+      const names = new Set(categories.map(c => c.name));
+      if (transactions.some(t => t.category === '미분류')) names.add('미분류');
+      return ['전체', ...names];
+    }
+
+    const names = categories
+      .filter(c => c.level2 === selectedLevel2)
+      .map(c => c.name);
+    return ['전체', ...names];
+  }, [categories, transactions, selectedLevel2]);
+
+  // 대분류 변경 시 세부 카테고리 초기화
+  const handleLevel2Change = (level2: string) => {
+    setSelectedLevel2(level2);
+    setSelectedCategory('전체');
+  };
+
   const filteredTransactions = useMemo(() => {
+    const catLookup = { ...CATEGORY_MAP } as Record<string, { level2: string }>;
+    categories.forEach(c => { catLookup[c.name] = c; });
+
     return transactions.filter(tx => {
       if (searchTerm && !tx.description.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+      if (selectedLevel2 !== '전체') {
+        const txLevel2 = catLookup[tx.category]?.level2;
+        if (txLevel2 !== selectedLevel2) return false;
+      }
       if (selectedCategory !== '전체' && tx.category !== selectedCategory) return false;
       if (showUnclassifiedOnly && tx.category !== '기타매출' && tx.category !== '기타사업비' && tx.category !== '미분류') return false;
       if (txType === 'income' && tx.credit <= 0) return false;
@@ -47,17 +87,11 @@ const TransactionsView: React.FC<Props> = ({ transactions, businessInfo, categor
       }
       return true;
     });
-  }, [transactions, searchTerm, selectedCategory, showUnclassifiedOnly, txType, dateFrom, dateTo]);
-
-  const uniqueCategories = useMemo(() => {
-    const names = new Set(categories.map(c => c.name));
-    // 파싱 직후 등 아직 정규화되지 않은 '미분류' 거래가 있으면 드롭다운에 포함
-    if (transactions.some(t => t.category === '미분류')) names.add('미분류');
-    return ['전체', ...names];
-  }, [categories, transactions]);
+  }, [transactions, searchTerm, selectedLevel2, selectedCategory, showUnclassifiedOnly, txType, dateFrom, dateTo, categories]);
 
   const handleResetFilters = () => {
     setSearchTerm('');
+    setSelectedLevel2('전체');
     setSelectedCategory('전체');
     setShowUnclassifiedOnly(false);
     setTxType('all');
@@ -65,7 +99,7 @@ const TransactionsView: React.FC<Props> = ({ transactions, businessInfo, categor
     setDateTo('');
   };
 
-  const hasActiveFilters = searchTerm || selectedCategory !== '전체' || showUnclassifiedOnly || txType !== 'all' || dateFrom || dateTo;
+  const hasActiveFilters = searchTerm || selectedLevel2 !== '전체' || selectedCategory !== '전체' || showUnclassifiedOnly || txType !== 'all' || dateFrom || dateTo;
 
   return (
     <div className="space-y-4">
@@ -87,7 +121,7 @@ const TransactionsView: React.FC<Props> = ({ transactions, businessInfo, categor
           className={`bg-white p-4 rounded-2xl border shadow-sm cursor-pointer transition-all ${
             showUnclassifiedOnly ? 'border-amber-400 bg-amber-50' : unclassifiedCount > 0 ? 'border-amber-300' : 'border-border-color'
           }`}
-          onClick={() => { setShowUnclassifiedOnly(!showUnclassifiedOnly); setSelectedCategory('전체'); }}
+          onClick={() => { setShowUnclassifiedOnly(!showUnclassifiedOnly); setSelectedLevel2('전체'); setSelectedCategory('전체'); }}
         >
           <p className="text-xs font-bold text-text-muted">미분류 거래</p>
           <p className={`text-xl font-black ${unclassifiedCount > 0 ? 'text-amber-600' : 'text-text-muted'}`}>
@@ -135,13 +169,24 @@ const TransactionsView: React.FC<Props> = ({ transactions, businessInfo, categor
             ))}
           </div>
 
-          {/* 카테고리 필터 */}
+          {/* 1차 카테고리 (대분류) */}
+          <select
+            value={selectedLevel2}
+            onChange={(e) => handleLevel2Change(e.target.value)}
+            className="py-2 px-3 border border-border-color rounded-xl bg-surface-subtle focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary text-sm min-w-[130px]"
+          >
+            {LEVEL2_OPTIONS.map(opt => (
+              <option key={opt.key} value={opt.key}>{opt.label}</option>
+            ))}
+          </select>
+
+          {/* 2차 카테고리 (세부) */}
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
             className="py-2 px-3 border border-border-color rounded-xl bg-surface-subtle focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary text-sm min-w-[140px]"
           >
-            {uniqueCategories.map(cat => (
+            {filteredCategoryOptions.map(cat => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
