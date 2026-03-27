@@ -55,19 +55,29 @@ export const parseFile = async (file: File, title: string): Promise<ProcessedDat
         const transactions: Transaction[] = [];
         const errors: string[] = [];
 
+        // 합계·소계 행 키워드 (파싱 스킵 대상)
+        const SKIP_DESC_KEYWORDS = ['합 계', '합계', '소계', '이월', '전월이월', '전기이월'];
+
         rows.forEach((row, idx) => {
           // 날짜가 없으면 건너뜀
           if (dateIdx === -1 || !row[dateIdx] || String(row[dateIdx]).trim() === '') return;
 
+          // 적요가 합계·소계 행이면 스킵 (하나은행 등 일부 은행이 중간 합계 행을 포함)
+          const rawDesc = String(row[descIdx] || '').trim();
+          if (SKIP_DESC_KEYWORDS.some(kw => rawDesc === kw || rawDesc.startsWith(kw))) return;
+
           try {
             const dateValue = row[dateIdx];
             let date: Date;
-            
+
             if (dateValue instanceof Date) {
               date = dateValue;
             } else {
-              // 문자열 날짜 처리 (예: 2024.01.01, 2024-01-01, 2024/01/01)
-              const dateStr = String(dateValue).replace(/\./g, '-');
+              // 문자열 날짜 처리 (예: 2024.01.01, 2024-01-01, 2024/01/01 2024-01-01 09:00)
+              // "YYYY-MM-DD HH:MM" 형식은 new Date()가 브라우저마다 다를 수 있어 ISO 형식으로 변환
+              const dateStr = String(dateValue)
+                .replace(/\./g, '-')
+                .replace(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/, '$1T$2');
               date = new Date(dateStr);
             }
 
@@ -85,13 +95,13 @@ export const parseFile = async (file: File, title: string): Promise<ProcessedDat
             const credit = parseAmount(row[creditIdx]);
             const balance = parseAmount(row[balanceIdx]);
 
-            // 입금/출금이 모두 0이면 의미 없는 행으로 간주할 수 있으나 일단 포함
-            if (debit === 0 && credit === 0 && balance === 0 && !row[descIdx]) return;
+            // 입금/출금이 모두 0이면 의미 없는 행으로 간주
+            if (debit === 0 && credit === 0) return;
 
             transactions.push({
               id: `${file.name}-${idx}-${date.getTime()}-${Math.random().toString(36).substr(2, 9)}`,
               date,
-              description: String(row[descIdx] || '').trim(),
+              description: rawDesc,
               debit,
               credit,
               balance,
