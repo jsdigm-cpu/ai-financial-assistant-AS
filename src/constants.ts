@@ -409,41 +409,75 @@ Object.entries(CATEGORY_ALIASES).forEach(([alias, standard]) => {
 
 /**
  * AI가 반환한 카테고리 이름을 표준 계정명으로 매칭합니다.
- * 1단계: 정확한 이름 매칭
- * 2단계: 정규화 키로 매칭 (공백/특수문자 제거 후)
+ *
+ * 0단계: extraCategories (현재 세션의 커스텀 카테고리) 정확 매칭 — 최우선
+ * 1단계: CATEGORY_MAP (모든 프리셋) 정확 매칭
+ * 2단계: 정규화 키 매칭 (공백/특수문자 제거 후)
  * 3단계: 별칭 매칭
- * 4단계: 부분 문자열 매칭
+ * 4단계: extraCategories 부분 문자열 매칭
+ * 5단계: DEFAULT_CATEGORIES 부분 문자열 매칭
+ * 6단계: 정규화 키 부분 매칭
  * 실패 시: 수입/지출 기본 카테고리 반환
+ *
+ * @param aiName        AI가 반환한 카테고리 이름
+ * @param isIncome      입금 거래 여부 (폴백 결정용)
+ * @param extraCategories 현재 세션에서 사용 중인 커스텀 카테고리 목록 (AI 생성 포함)
  */
-export function normalizeCategoryName(aiName: string, isIncome: boolean): string {
+export function normalizeCategoryName(
+  aiName: string,
+  isIncome: boolean,
+  extraCategories?: Category[]
+): string {
   const trimmed = aiName.trim();
-  
-  // 1단계: 정확한 매칭
+
+  // 0단계: 현재 세션 커스텀 카테고리 정확 매칭 (AI 생성 카테고리 포함) — 최우선
+  if (extraCategories && extraCategories.length > 0) {
+    const directMatch = extraCategories.find(c => c.name === trimmed);
+    if (directMatch) return trimmed;
+  }
+
+  // 1단계: 프리셋 CATEGORY_MAP 정확 매칭
   if (CATEGORY_MAP[trimmed]) return trimmed;
-  
-  // 2단계: 정규화 키 매칭
+
+  // 2단계: 정규화 키 매칭 (공백/특수문자 제거 후)
   const nKey = normalizeKey(trimmed);
   const exactNormalized = NORMALIZED_CATEGORY_INDEX.get(nKey);
   if (exactNormalized) return exactNormalized;
-  
+
   // 3단계: 별칭 매칭
   const aliasMatch = NORMALIZED_ALIAS_INDEX.get(nKey);
   if (aliasMatch) return aliasMatch;
-  
-  // 4단계: 부분 문자열 매칭 (AI가 이름을 약간 변형한 경우)
+
+  // 4단계: extraCategories 부분 문자열 매칭
+  if (extraCategories && extraCategories.length > 0) {
+    for (const cat of extraCategories) {
+      if (trimmed.includes(cat.name) || cat.name.includes(trimmed)) {
+        return cat.name;
+      }
+    }
+    // 4-1단계: extraCategories 정규화 키 부분 매칭
+    for (const cat of extraCategories) {
+      const catKey = normalizeKey(cat.name);
+      if (nKey.includes(catKey) || catKey.includes(nKey)) {
+        return cat.name;
+      }
+    }
+  }
+
+  // 5단계: DEFAULT_CATEGORIES 부분 문자열 매칭
   for (const standardName of ALL_CATEGORY_NAMES) {
     if (trimmed.includes(standardName) || standardName.includes(trimmed)) {
       return standardName;
     }
   }
-  
-  // 5단계: 정규화 키 부분 매칭
+
+  // 6단계: 정규화 키 부분 매칭
   for (const [stdKey, stdName] of NORMALIZED_CATEGORY_INDEX.entries()) {
     if (nKey.includes(stdKey) || stdKey.includes(nKey)) {
       return stdName;
     }
   }
-  
+
   // 실패 시 기본값
   console.warn(`[카테고리 매칭 실패] AI 반환값: "${aiName}" → 기본 카테고리 사용`);
   return isIncome ? DEFAULT_CATEGORY_INCOME : DEFAULT_CATEGORY_EXPENSE;
