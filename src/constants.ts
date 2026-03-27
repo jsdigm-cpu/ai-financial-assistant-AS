@@ -802,12 +802,12 @@ export const DEFAULT_KEYWORD_RULES: CategoryRule[] = [
   { keyword: '쿠팡페이', category: '배달매출', source: 'ai' },   // 쿠팡이츠 정산 (238건) — '쿠팡이츠'보다 긴 키워드 우선
   { keyword: '배민', category: '배달매출', source: 'ai' },       // 배민1·배민바로결제·배민포장주문 등 (127건)
   { keyword: '음식배달', category: '배달매출', source: 'ai' },   // 193건 실데이터 검증
+  { keyword: '땡겨요', category: '배달매출', source: 'ai' },     // 신한은행 배달 플랫폼 (48건)
   { keyword: '먹깨비', category: '배달매출', source: 'ai' },
   { keyword: '요마트', category: '배달매출', source: 'ai' },
   { keyword: '배달통', category: '배달매출', source: 'ai' },
 
   // ── 간편결제: 추가 ──
-  { keyword: '땡겨요', category: '간편결제', source: 'ai' },     // 땡겨요정산→간편결제 (48건 실데이터 검증, 배달매출 아님)
   { keyword: 'Npay', category: '간편결제', source: 'ai' },
   { keyword: 'N페이', category: '간편결제', source: 'ai' },
   { keyword: '엔에이치엔페이', category: '간편결제', source: 'ai' },
