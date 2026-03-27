@@ -137,9 +137,11 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
               .sort((a, b) => b.keyword.length - a.keyword.length)[0];
 
           if (matchingRule) {
+              // manual 규칙: 사용자가 직접 지정한 카테고리 → 그대로 사용
+              // ai 규칙: normalizeCategoryName에 현재 세션 카테고리 목록도 전달
               const normalizedCategory = matchingRule.source === 'manual'
                   ? matchingRule.category
-                  : normalizeCategoryName(matchingRule.category, isIncome);
+                  : normalizeCategoryName(matchingRule.category, isIncome, allCategories);
 
               // 방향 불일치 검증: 입금인데 지출 카테고리, 또는 출금인데 수입 카테고리면 규칙 무시
               if (!validateDirection(normalizedCategory, isIncome, allCategories)) {
@@ -167,7 +169,9 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
                   const aiCategory = categorizedMap[tx.id];
                   if (aiCategory) {
                       const isIncome = tx.credit > 0;
-                      const normalized = normalizeCategoryName(aiCategory, isIncome);
+                      // 현재 세션 카테고리 목록(allCategories)을 전달하여
+                      // AI 생성 커스텀 카테고리도 정확히 매칭되도록 함
+                      const normalized = normalizeCategoryName(aiCategory, isIncome, allCategories);
                       // AI 결과도 방향 검증: 불일치 시 기본 카테고리로 교정
                       if (!validateDirection(normalized, isIncome, allCategories)) {
                           return { ...tx, category: isIncome ? DEFAULT_CATEGORY_INCOME : DEFAULT_CATEGORY_EXPENSE };

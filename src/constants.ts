@@ -409,41 +409,75 @@ Object.entries(CATEGORY_ALIASES).forEach(([alias, standard]) => {
 
 /**
  * AI가 반환한 카테고리 이름을 표준 계정명으로 매칭합니다.
- * 1단계: 정확한 이름 매칭
- * 2단계: 정규화 키로 매칭 (공백/특수문자 제거 후)
+ *
+ * 0단계: extraCategories (현재 세션의 커스텀 카테고리) 정확 매칭 — 최우선
+ * 1단계: CATEGORY_MAP (모든 프리셋) 정확 매칭
+ * 2단계: 정규화 키 매칭 (공백/특수문자 제거 후)
  * 3단계: 별칭 매칭
- * 4단계: 부분 문자열 매칭
+ * 4단계: extraCategories 부분 문자열 매칭
+ * 5단계: DEFAULT_CATEGORIES 부분 문자열 매칭
+ * 6단계: 정규화 키 부분 매칭
  * 실패 시: 수입/지출 기본 카테고리 반환
+ *
+ * @param aiName        AI가 반환한 카테고리 이름
+ * @param isIncome      입금 거래 여부 (폴백 결정용)
+ * @param extraCategories 현재 세션에서 사용 중인 커스텀 카테고리 목록 (AI 생성 포함)
  */
-export function normalizeCategoryName(aiName: string, isIncome: boolean): string {
+export function normalizeCategoryName(
+  aiName: string,
+  isIncome: boolean,
+  extraCategories?: Category[]
+): string {
   const trimmed = aiName.trim();
-  
-  // 1단계: 정확한 매칭
+
+  // 0단계: 현재 세션 커스텀 카테고리 정확 매칭 (AI 생성 카테고리 포함) — 최우선
+  if (extraCategories && extraCategories.length > 0) {
+    const directMatch = extraCategories.find(c => c.name === trimmed);
+    if (directMatch) return trimmed;
+  }
+
+  // 1단계: 프리셋 CATEGORY_MAP 정확 매칭
   if (CATEGORY_MAP[trimmed]) return trimmed;
-  
-  // 2단계: 정규화 키 매칭
+
+  // 2단계: 정규화 키 매칭 (공백/특수문자 제거 후)
   const nKey = normalizeKey(trimmed);
   const exactNormalized = NORMALIZED_CATEGORY_INDEX.get(nKey);
   if (exactNormalized) return exactNormalized;
-  
+
   // 3단계: 별칭 매칭
   const aliasMatch = NORMALIZED_ALIAS_INDEX.get(nKey);
   if (aliasMatch) return aliasMatch;
-  
-  // 4단계: 부분 문자열 매칭 (AI가 이름을 약간 변형한 경우)
+
+  // 4단계: extraCategories 부분 문자열 매칭
+  if (extraCategories && extraCategories.length > 0) {
+    for (const cat of extraCategories) {
+      if (trimmed.includes(cat.name) || cat.name.includes(trimmed)) {
+        return cat.name;
+      }
+    }
+    // 4-1단계: extraCategories 정규화 키 부분 매칭
+    for (const cat of extraCategories) {
+      const catKey = normalizeKey(cat.name);
+      if (nKey.includes(catKey) || catKey.includes(nKey)) {
+        return cat.name;
+      }
+    }
+  }
+
+  // 5단계: DEFAULT_CATEGORIES 부분 문자열 매칭
   for (const standardName of ALL_CATEGORY_NAMES) {
     if (trimmed.includes(standardName) || standardName.includes(trimmed)) {
       return standardName;
     }
   }
-  
-  // 5단계: 정규화 키 부분 매칭
+
+  // 6단계: 정규화 키 부분 매칭
   for (const [stdKey, stdName] of NORMALIZED_CATEGORY_INDEX.entries()) {
     if (nKey.includes(stdKey) || stdKey.includes(nKey)) {
       return stdName;
     }
   }
-  
+
   // 실패 시 기본값
   console.warn(`[카테고리 매칭 실패] AI 반환값: "${aiName}" → 기본 카테고리 사용`);
   return isIncome ? DEFAULT_CATEGORY_INCOME : DEFAULT_CATEGORY_EXPENSE;
@@ -736,4 +770,128 @@ export const DEFAULT_KEYWORD_RULES: CategoryRule[] = [
   { keyword: '적금', category: '개인저축·투자', source: 'ai' },
   { keyword: '펀드', category: '개인저축·투자', source: 'ai' },
   { keyword: '증권', category: '개인저축·투자', source: 'ai' },
+
+  // ━━━ 실제 은행 데이터 분석 기반 추가 규칙 ━━━
+
+  // ── 카드매출: VAN사 카드사별 정산 패턴 (입금 → 방향 검증으로 출금 자동 배제) ──
+  // 하나은행 거래내역에서 "카드사명+계좌번호(숫자코드)" 형태로 입금되는 카드 정산
+  // 예: 삼성197963861, KB11610154, 신한13727349, 하나921404753, 739447034B 등
+  // ★ 긴 키워드(삼성카드대금, 삼성생명 등)가 우선 적용되므로, 카드사 단축명은 VAN정산 입금 매칭용으로 안전
+  { keyword: '시흥정산', category: '카드매출', source: 'ai' },    // 시흥시 VAN 정산
+  { keyword: '카드건', category: '카드매출', source: 'ai' },      // 카드단말기 정산 (ex: 토담최경자카드건)
+  { keyword: '카드입금', category: '카드매출', source: 'ai' },    // 카드 정산 입금
+  { keyword: 'BC카드', category: '카드매출', source: 'ai' },
+  { keyword: '현대카드', category: '카드매출', source: 'ai' },
+  { keyword: '우리카드', category: '카드매출', source: 'ai' },
+  { keyword: 'NH카드', category: '카드매출', source: 'ai' },
+  { keyword: '신한카드정산', category: '카드매출', source: 'ai' },
+  // 카드사 이름 단축 키워드 (숫자코드 정산 패치 — 입금에만 유효, 출금은 방향 검증으로 자동 제외)
+  // 더 긴 키워드("삼성카드대금", "삼성생명", "KB카드대금" 등)가 항상 우선 적용됨
+  { keyword: '삼성', category: '카드매출', source: 'ai' },        // ex) 삼성197963861 입금
+  { keyword: 'KB', category: '카드매출', source: 'ai' },          // ex) KB11610154 입금
+  { keyword: '신한', category: '카드매출', source: 'ai' },        // ex) 신한13727349 입금
+  { keyword: 'NH', category: '카드매출', source: 'ai' },          // ex) NH17434147 입금
+  { keyword: '하나', category: '카드매출', source: 'ai' },        // ex) 하나921404753 입금 (하나카드대금 출금은 더 긴 키워드로 우선 처리)
+  { keyword: '롯데', category: '카드매출', source: 'ai' },        // ex) 롯데37865250 입금 (롯데마트, 롯데카드대금은 더 긴 키워드 우선)
+  { keyword: '우리', category: '카드매출', source: 'ai' },        // ex) 우601987000 입금
+  { keyword: '현대', category: '카드매출', source: 'ai' },        // ex) 현142302158 입금
+
+  // ── 배달매출: 추가 배달 플랫폼 ──
+  { keyword: '땡겨요', category: '배달매출', source: 'ai' },
+  { keyword: '먹깨비', category: '배달매출', source: 'ai' },
+  { keyword: '요마트', category: '배달매출', source: 'ai' },
+  { keyword: '배달통', category: '배달매출', source: 'ai' },
+
+  // ── 간편결제: 추가 ──
+  { keyword: 'Npay', category: '간편결제', source: 'ai' },
+  { keyword: 'N페이', category: '간편결제', source: 'ai' },
+  { keyword: '엔에이치엔페이', category: '간편결제', source: 'ai' },
+  { keyword: '페이코', category: '간편결제', source: 'ai' },
+  { keyword: '제로페이', category: '지역화폐', source: 'ai' },
+
+  // ── 보험금·환급금: 추가 패턴 ──
+  { keyword: '캐쉬백', category: '보험금·환급금', source: 'ai' },
+  { keyword: '캐시백', category: '보험금·환급금', source: 'ai' },
+  { keyword: '비즈머니환불', category: '보험금·환급금', source: 'ai' },
+  { keyword: '배달택배비지원', category: '정부지원금', source: 'ai' },
+
+  // ── 세금·공과금: 추가 패턴 ──
+  { keyword: '부가가치세', category: '세금·공과금', source: 'ai' },  // '부가세'와 별도로 필요
+  { keyword: '세외수납', category: '세금·공과금', source: 'ai' },
+  { keyword: '세외수입', category: '세금·공과금', source: 'ai' },
+  { keyword: '국세', category: '세금·공과금', source: 'ai' },
+  { keyword: '관세', category: '세금·공과금', source: 'ai' },
+  { keyword: '종합소득세', category: '세금·공과금', source: 'ai' },
+  { keyword: '원천세', category: '세금·공과금', source: 'ai' },
+
+  // ── 도시가스비: 패턴 확장 ──
+  { keyword: '가스요금', category: '도시가스비', source: 'ai' },
+  { keyword: '가스비', category: '도시가스비', source: 'ai' },
+  // 'XX월 가스', '가스 XX월' 같은 청구서 형식 포함 ('가스'가 적요에 포함되는 경우)
+  { keyword: '코원에너지', category: '도시가스비', source: 'ai' },
+  { keyword: '서울도시가스', category: '도시가스비', source: 'ai' },
+  { keyword: '경동도시가스', category: '도시가스비', source: 'ai' },
+  { keyword: '귀뚜라미에너지', category: '도시가스비', source: 'ai' },
+  { keyword: '예스코', category: '도시가스비', source: 'ai' },
+
+  // ── 전기요금: 패턴 확장 ──
+  { keyword: '전기세', category: '전기요금', source: 'ai' },
+  { keyword: '전력공사', category: '전기요금', source: 'ai' },
+  { keyword: 'KEPCO', category: '전기요금', source: 'ai' },
+
+  // ── 통신·IT비: 추가 ──
+  { keyword: '쿠팡와우', category: '통신·IT비', source: 'ai' },   // 구독료 성격
+  { keyword: '넷플릭스', category: '통신·IT비', source: 'ai' },
+  { keyword: '유튜브프리미엄', category: '통신·IT비', source: 'ai' },
+
+  // ── 신용카드대금: 카드사별 추가 ──
+  { keyword: '삼성카드', category: '신용카드대금', source: 'ai' },
+  { keyword: '현대카드대금', category: '신용카드대금', source: 'ai' },
+  { keyword: '롯데카드대금', category: '신용카드대금', source: 'ai' },
+  { keyword: '우리카드대금', category: '신용카드대금', source: 'ai' },
+  { keyword: '신한카드대금', category: '신용카드대금', source: 'ai' },
+  { keyword: 'KB카드대금', category: '신용카드대금', source: 'ai' },
+  { keyword: 'BC카드대금', category: '신용카드대금', source: 'ai' },
+  { keyword: '농협카드대금', category: '신용카드대금', source: 'ai' },
+
+  // ── 수선유지비: 추가 ──
+  { keyword: '수선비', category: '수선유지비', source: 'ai' },
+  { keyword: '유지보수', category: '수선유지비', source: 'ai' },
+  { keyword: '수리비', category: '수선유지비', source: 'ai' },
+  { keyword: '설비', category: '수선유지비', source: 'ai' },
+
+  // ── 병원·약국비: 기관명 추가 ──
+  { keyword: '의원', category: '병원·약국비', source: 'ai' },
+  { keyword: '한의원', category: '병원·약국비', source: 'ai' },
+  { keyword: '치과', category: '병원·약국비', source: 'ai' },
+  { keyword: '안과', category: '병원·약국비', source: 'ai' },
+  { keyword: '피부과', category: '병원·약국비', source: 'ai' },
+  { keyword: '정형외과', category: '병원·약국비', source: 'ai' },
+  { keyword: '내과', category: '병원·약국비', source: 'ai' },
+  { keyword: '산부인과', category: '병원·약국비', source: 'ai' },
+  { keyword: '소아과', category: '병원·약국비', source: 'ai' },
+
+  // ── 원재료(식자재): 식자재 납품 업체 패턴 ──
+  { keyword: '푸드', category: '원재료(식자재)', source: 'ai' },    // XX푸드 형태 업체명
+  { keyword: '식품', category: '원재료(식자재)', source: 'ai' },
+  { keyword: '유통', category: '원재료(식자재)', source: 'ai' },    // XX유통 형태 납품업체
+  { keyword: '식재료', category: '원재료(식자재)', source: 'ai' },
+
+  // ── 부자재(주류): 주류 납품 ──
+  { keyword: '주류', category: '부자재(주류)', source: 'ai' },
+  { keyword: '주식회사이마트', category: '마트·편의점구입', source: 'ai' },
+
+  // ── 마트·편의점구입: 추가 ──
+  { keyword: 'CU편의점', category: '마트·편의점구입', source: 'ai' },
+  { keyword: 'CU_', category: '마트·편의점구입', source: 'ai' },
+  { keyword: 'GS25', category: '마트·편의점구입', source: 'ai' },
+  { keyword: '세븐일레븐', category: '마트·편의점구입', source: 'ai' },
+  { keyword: '미니스톱', category: '마트·편의점구입', source: 'ai' },
+  { keyword: '홈플러스', category: '마트·편의점구입', source: 'ai' },
+  { keyword: '코스트코', category: '마트·편의점구입', source: 'ai' },
+  { keyword: '롯데마트', category: '마트·편의점구입', source: 'ai' },
+
+  // ── 개인식비: 개인 식사 관련 ──
+  { keyword: '김밥', category: '개인식비', source: 'ai' },
+  { keyword: '분식', category: '개인식비', source: 'ai' },
 ];
