@@ -387,6 +387,8 @@ const CATEGORY_ALIASES: Record<string, string> = {
   '유류비': '유류비·교통비',
   '통신 IT비 개인': '개인통신·보험',
   '개인 통신비': '개인통신·보험',
+  '통신IT비개인사비': '개인통신·보험',  // 실데이터: 통신·IT비(개인사비)
+  '통신IT비(개인사비)': '개인통신·보험',
   '문자수수료': '개인통신·보험',
   '문자통지수수료': '개인통신·보험',
   '가족용돈': '가족용돈·생활비',
@@ -777,7 +779,7 @@ export const DEFAULT_KEYWORD_RULES: CategoryRule[] = [
   // 하나은행 거래내역에서 "카드사명+계좌번호(숫자코드)" 형태로 입금되는 카드 정산
   // 예: 삼성197963861, KB11610154, 신한13727349, 하나921404753, 739447034B 등
   // ★ 긴 키워드(삼성카드대금, 삼성생명 등)가 우선 적용되므로, 카드사 단축명은 VAN정산 입금 매칭용으로 안전
-  { keyword: '시흥정산', category: '카드매출', source: 'ai' },    // 시흥시 VAN 정산
+  { keyword: '시흥정산', category: '지역화폐', source: 'ai' },    // 시흥시 지역화폐 정산 (258건 실데이터 검증)
   { keyword: '카드건', category: '카드매출', source: 'ai' },      // 카드단말기 정산 (ex: 토담최경자카드건)
   { keyword: '카드입금', category: '카드매출', source: 'ai' },    // 카드 정산 입금
   { keyword: 'BC카드', category: '카드매출', source: 'ai' },
@@ -796,13 +798,16 @@ export const DEFAULT_KEYWORD_RULES: CategoryRule[] = [
   { keyword: '우리', category: '카드매출', source: 'ai' },        // ex) 우601987000 입금
   { keyword: '현대', category: '카드매출', source: 'ai' },        // ex) 현142302158 입금
 
-  // ── 배달매출: 추가 배달 플랫폼 ──
-  { keyword: '땡겨요', category: '배달매출', source: 'ai' },
+  // ── 배달매출: 추가 배달 플랫폼 (실데이터 검증) ──
+  { keyword: '쿠팡페이', category: '배달매출', source: 'ai' },   // 쿠팡이츠 정산 (238건) — '쿠팡이츠'보다 긴 키워드 우선
+  { keyword: '배민', category: '배달매출', source: 'ai' },       // 배민1·배민바로결제·배민포장주문 등 (127건)
+  { keyword: '음식배달', category: '배달매출', source: 'ai' },   // 193건 실데이터 검증
   { keyword: '먹깨비', category: '배달매출', source: 'ai' },
   { keyword: '요마트', category: '배달매출', source: 'ai' },
   { keyword: '배달통', category: '배달매출', source: 'ai' },
 
   // ── 간편결제: 추가 ──
+  { keyword: '땡겨요', category: '간편결제', source: 'ai' },     // 땡겨요정산→간편결제 (48건 실데이터 검증, 배달매출 아님)
   { keyword: 'Npay', category: '간편결제', source: 'ai' },
   { keyword: 'N페이', category: '간편결제', source: 'ai' },
   { keyword: '엔에이치엔페이', category: '간편결제', source: 'ai' },
@@ -827,7 +832,7 @@ export const DEFAULT_KEYWORD_RULES: CategoryRule[] = [
   // ── 도시가스비: 패턴 확장 ──
   { keyword: '가스요금', category: '도시가스비', source: 'ai' },
   { keyword: '가스비', category: '도시가스비', source: 'ai' },
-  // 'XX월 가스', '가스 XX월' 같은 청구서 형식 포함 ('가스'가 적요에 포함되는 경우)
+  { keyword: '가스', category: '도시가스비', source: 'ai' },   // 가스10월·가스11월 청구 형식 (17건)
   { keyword: '코원에너지', category: '도시가스비', source: 'ai' },
   { keyword: '서울도시가스', category: '도시가스비', source: 'ai' },
   { keyword: '경동도시가스', category: '도시가스비', source: 'ai' },
@@ -839,10 +844,20 @@ export const DEFAULT_KEYWORD_RULES: CategoryRule[] = [
   { keyword: '전력공사', category: '전기요금', source: 'ai' },
   { keyword: 'KEPCO', category: '전기요금', source: 'ai' },
 
+  // ── 포스·시스템비: 구체적 업체명 (KT보다 먼저 매칭되도록 앞에 배치) ──
+  { keyword: '케이투정보통신', category: '포스·시스템비', source: 'ai' }, // KT 포함이지만 포스업체 (18건)
+  { keyword: '케이투정보', category: '포스·시스템비', source: 'ai' },
+  { keyword: 'KPN', category: '포스·시스템비', source: 'ai' },           // 대표_KPN (23건)
+  { keyword: '코페이', category: '포스·시스템비', source: 'ai' },
+  { keyword: 'KICC', category: '포스·시스템비', source: 'ai' },          // 결제 단말기
+  { keyword: '하나카드', category: '신용카드대금', source: 'ai' },       // 하나카드 결제대금 (15건) — '하나' 단축명보다 긴 키워드 우선
+
   // ── 통신·IT비: 추가 ──
-  { keyword: '쿠팡와우', category: '통신·IT비', source: 'ai' },   // 구독료 성격
   { keyword: '넷플릭스', category: '통신·IT비', source: 'ai' },
   { keyword: '유튜브프리미엄', category: '통신·IT비', source: 'ai' },
+
+  // ── 개인식비: 쿠팡와우 구독·개인 카페 ──
+  { keyword: '쿠팡와우', category: '개인식비', source: 'ai' },    // 쿠팡 멤버십 구독 (개인사비 성격)
 
   // ── 신용카드대금: 카드사별 추가 ──
   { keyword: '삼성카드', category: '신용카드대금', source: 'ai' },
@@ -871,27 +886,84 @@ export const DEFAULT_KEYWORD_RULES: CategoryRule[] = [
   { keyword: '산부인과', category: '병원·약국비', source: 'ai' },
   { keyword: '소아과', category: '병원·약국비', source: 'ai' },
 
-  // ── 원재료(식자재): 식자재 납품 업체 패턴 ──
+  // ── 원재료(식자재): 구체적 납품업체 (실데이터 기반) ──
+  { keyword: '강봉기', category: '원재료(식자재)', source: 'ai' },  // 140건 — 토담 옛날통닭 주 납품업체
+  { keyword: '참진푸드', category: '원재료(식자재)', source: 'ai' }, // 134건
+  { keyword: '스마일푸드', category: '원재료(식자재)', source: 'ai' }, // 3건
+  { keyword: '대경축산', category: '원재료(식자재)', source: 'ai' },
+  { keyword: '창성수산', category: '원재료(식자재)', source: 'ai' },
   { keyword: '푸드', category: '원재료(식자재)', source: 'ai' },    // XX푸드 형태 업체명
   { keyword: '식품', category: '원재료(식자재)', source: 'ai' },
-  { keyword: '유통', category: '원재료(식자재)', source: 'ai' },    // XX유통 형태 납품업체
   { keyword: '식재료', category: '원재료(식자재)', source: 'ai' },
 
-  // ── 부자재(주류): 주류 납품 ──
-  { keyword: '주류', category: '부자재(주류)', source: 'ai' },
-  { keyword: '주식회사이마트', category: '마트·편의점구입', source: 'ai' },
+  // ── 부자재(식용류): 식용유 납품업체 (실데이터 기반) ──
+  // ★ '유통' 키워드보다 구체적 업체명이 먼저 → 글로벌유통=식용류, 일반유통=식자재
+  { keyword: '글로벌유통', category: '부자재(식용류)', source: 'ai' }, // 장만길(글로벌유통) 32건
+  { keyword: '벼룩유통', category: '부자재(식용류)', source: 'ai' },   // 전현숙(벼룩유통) 4건
+  { keyword: '장만길', category: '부자재(식용류)', source: 'ai' },     // 67건
+  { keyword: '전현숙', category: '부자재(식용류)', source: 'ai' },     // 4건
+  { keyword: '유통', category: '원재료(식자재)', source: 'ai' },       // XX유통 형태 납품업체 (일반)
 
-  // ── 마트·편의점구입: 추가 ──
+  // ── 부자재(음료): 음료 납품업체 ──
+  { keyword: '이디피', category: '부자재(음료)', source: 'ai' },    // 김현규(이디피) 28건
+
+  // ── 부자재(기타): 창희민속제과 ──
+  { keyword: '창희민속', category: '부자재(기타)', source: 'ai' },  // 23건
+
+  // ── 부자재(주류): 주류 납품 ──
+  { keyword: '광성주류', category: '부자재(주류)', source: 'ai' },  // 17건 (유)광성주류
+  { keyword: '주류', category: '부자재(주류)', source: 'ai' },
+
+  // ── 마트·편의점구입: 추가 (실데이터 기반) ──
   { keyword: 'CU편의점', category: '마트·편의점구입', source: 'ai' },
   { keyword: 'CU_', category: '마트·편의점구입', source: 'ai' },
   { keyword: 'GS25', category: '마트·편의점구입', source: 'ai' },
+  { keyword: '지에스25', category: '마트·편의점구입', source: 'ai' }, // 135건 지에스25목감한
+  { keyword: '지에스더프레시', category: '마트·편의점구입', source: 'ai' }, // 5건
+  { keyword: '노브랜드', category: '마트·편의점구입', source: 'ai' }, // 71건
+  { keyword: '진로마트', category: '마트·편의점구입', source: 'ai' }, // 54건
+  { keyword: '가나안덕', category: '마트·편의점구입', source: 'ai' }, // 4건 (식자재 아님)
   { keyword: '세븐일레븐', category: '마트·편의점구입', source: 'ai' },
   { keyword: '미니스톱', category: '마트·편의점구입', source: 'ai' },
   { keyword: '홈플러스', category: '마트·편의점구입', source: 'ai' },
   { keyword: '코스트코', category: '마트·편의점구입', source: 'ai' },
   { keyword: '롯데마트', category: '마트·편의점구입', source: 'ai' },
 
+  // ── 배달수수료: 실데이터 기반 추가 ──
+  { keyword: '메쉬', category: '배달수수료', source: 'ai' },          // 33건 (메쉬 토담옛날치킨조)
+  { keyword: '배민비즈머니', category: '배달수수료', source: 'ai' },  // 8건
+  { keyword: '바로고', category: '배달수수료', source: 'ai' },        // 2건 (바로고/토담옛날치킨)
+
+  // ── 수선유지비: 실데이터 기반 추가 ──
+  { keyword: '광명종합주방', category: '수선유지비', source: 'ai' },  // 7건 (주방기기 수선)
+  { keyword: '세스코', category: '수선유지비', source: 'ai' },        // 방역업체
+
+  // ── 세금·공과금: 실데이터 기반 추가 ──
+  { keyword: '경찰청', category: '세금·공과금', source: 'ai' },       // 과태료 4건
+  { keyword: '지방세', category: '세금·공과금', source: 'ai' },       // 4건
+  { keyword: '세외수입ARS', category: '세금·공과금', source: 'ai' },  // 66건 대표패턴
+
+  // ── 기타사업비: 실데이터 기반 ──
+  { keyword: '한국외식업중앙회', category: '기타사업비', source: 'ai' }, // 16건 (조합비)
+  { keyword: '파리바게뜨', category: '기타사업비', source: 'ai' },    // 36건 (직원 간식 등)
+
+  // ── 유류비·교통비: 실데이터 기반 ──
+  { keyword: '경동석유', category: '유류비·교통비', source: 'ai' },   // 38건 (주유)
+  { keyword: '행복주유', category: '유류비·교통비', source: 'ai' },   // 목감행복주유소
+  { keyword: '석유', category: '유류비·교통비', source: 'ai' },       // XX석유 형태 주유소
+
+  // ── 인건비: 실데이터 기반 ──
+  { keyword: '인건비', category: '인건비(알바)', source: 'ai' },      // 이름(인건비) 패턴 (정현우·강명숙 등 38건)
+  { keyword: '문현숙', category: '인건비(정규)', source: 'ai' },      // 정규직 7건
+  { keyword: '박지영인건비', category: '인건비(정규)', source: 'ai' }, // 정규직 4건
+
+  // ── DB손해보험: 보험료 ──
+  { keyword: 'DB손', category: '보험료', source: 'ai' },              // DB손해보험 (전각문자 포함 대비)
+  { keyword: 'DB손해', category: '보험료', source: 'ai' },
+
   // ── 개인식비: 개인 식사 관련 ──
   { keyword: '김밥', category: '개인식비', source: 'ai' },
   { keyword: '분식', category: '개인식비', source: 'ai' },
+  { keyword: '메가엠지씨', category: '개인식비', source: 'ai' },      // 메가엠지씨커피 (85건 개인사비)
+  { keyword: '소플러스', category: '개인식비', source: 'ai' },        // 소플러스물왕 (9건 개인사비)
 ];
