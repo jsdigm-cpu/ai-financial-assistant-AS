@@ -243,7 +243,13 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
 
     const loadSavedDataAndClassify = async (savedData: { categories: Category[], categoryRules: CategoryRule[] }) => {
         setCategories(savedData.categories);
-        setCategoryRules(savedData.categoryRules);
+        // 저장된 규칙에서 사용자 추가(manual/ai) 규칙만 유지하고,
+        // 코드 업데이트로 추가된 DEFAULT_KEYWORD_RULES를 항상 포함시킴
+        const userRules = savedData.categoryRules.filter(r => r.source === 'manual');
+        const defaultKeywords = new Set(DEFAULT_KEYWORD_RULES.map(r => r.keyword.toLowerCase()));
+        const aiRules = savedData.categoryRules.filter(r => r.source === 'ai' && !defaultKeywords.has(r.keyword.toLowerCase()));
+        const mergedRules = [...DEFAULT_KEYWORD_RULES, ...aiRules, ...userRules];
+        setCategoryRules(mergedRules);
         setIsInitialLoading(true);
         setLoadingProgressMessages([
             "저장된 설정을 불러옵니다...",
@@ -251,7 +257,7 @@ const MainLayout: React.FC<Props> = ({ initialData, businessInfo, uploadedFiles,
             "현금 흐름을 계산하는 중입니다...",
             "분석 대시보드를 준비하고 있습니다...",
         ]);
-        await runClassification(initialData.transactions, savedData.categoryRules, savedData.categories, businessInfo);
+        await runClassification(initialData.transactions, mergedRules, savedData.categories, businessInfo);
         setIsInitialLoading(false);
     };
 

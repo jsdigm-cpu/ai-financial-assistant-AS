@@ -49,16 +49,15 @@ export const categorizeTransactions = async (
   businessInfo: BusinessInfo
 ): Promise<Record<string, string>> => {
   const ai = getAI();
-  
-  const batchSize = 50;
-  const results: Record<string, string> = {};
-  
-  for (let i = 0; i < transactions.length; i += batchSize) {
-    const batch = transactions.slice(i, i + batchSize);
-    const incomeCategories = categories.filter(c => c.level1 === '수입').map(c => c.name).join(', ');
-    const expenseCategories = categories.filter(c => c.level1 === '지출').map(c => c.name).join(', ');
 
-    const prompt = `
+  const BATCH_SIZE = 150;
+  const CONCURRENT = 2;
+  const results: Record<string, string> = {};
+
+  const incomeCategories = categories.filter(c => c.level1 === '수입').map(c => c.name).join(', ');
+  const expenseCategories = categories.filter(c => c.level1 === '지출').map(c => c.name).join(', ');
+
+  const makeBatchPrompt = (batch: Transaction[]): string => `
 당신은 소상공인 사업장의 통장 거래를 분류하는 전문 회계사입니다.
 
 [사업장 정보]
@@ -66,82 +65,74 @@ export const categorizeTransactions = async (
 규모: ${businessInfo.businessScale || '소규모'} | 배달플랫폼: ${businessInfo.onlinePlatforms || '없음'}
 원재료 매입처: ${businessInfo.rawMaterialSuppliers || '미상'}
 
-[카테고리 - 방향별 분리]
-▶ 수입 카테고리(입금 거래에만 사용 가능): ${incomeCategories}
-▶ 지출 카테고리(출금 거래에만 사용 가능): ${expenseCategories}
+[카테고리]
+▶ 수입(입금 전용): ${incomeCategories}
+▶ 지출(출금 전용): ${expenseCategories}
 
-[분류 원칙 - 반드시 준수]
-★ 절대 규칙: 입금→수입 카테고리, 출금→지출 카테고리. 절대 혼용 금지.
-  (이를 어기면 손익 계산 전체가 틀어짐)
+[분류 원칙]
+★ 절대규칙: 입금→수입, 출금→지출. 혼용 절대 금지.
 
-★ 매출 패턴 (입금 → 수입):
-- 배달의민족·배민·배민1·배민바로결제·배민포장주문·쿠팡이츠·쿠팡페이·요기요·땡겨요·먹깨비 입금 → 배달매출
-- 배달수수료·메쉬·바로고·배민비즈머니 출금 → 배달수수료
-- 음식배달 입금 → 배달매출
-- VAN정산·카드정산·POS정산 입금 → 카드매출
-- "카드사명+숫자코드" 형태 입금(예: 삼성197963861, KB11610154, 신한13727349, 현142302158, NH17434147, 하나921404753, 우601987000, 롯데37865250, 739447034B, 739447034BC 등) → 카드매출
-- 네이버페이정산·Npay·카카오페이·토스·엔에이치엔페이·페이코 입금 → 간편결제
-- 시흥정산 입금 → 지역화폐 (※카드매출 아님, 시흥시 지역화폐)
-- 제로페이·지역사랑상품권·온누리상품권 입금 → 지역화폐
+1. 매출(입금):
+   - 배민·배민1·쿠팡이츠·쿠팡페이·요기요·땡겨요·먹깨비 → 배달매출
+   - VAN정산·카드정산·POS정산 → 카드매출
+   - 카드사명+숫자코드(삼성197963861, KB11610154, 신한13727349, 현142302158, NH17434147, 하나921404753, 우601987000, 롯데37865250, 739447034B 등) → 카드매출
+   - 네이버페이정산·Npay·카카오페이·토스·엔에이치엔페이·페이코 → 간편결제
+   - 시흥정산·제로페이·지역사랑상품권·온누리상품권 → 지역화폐
 
-★ 환급·환불 입금:
-- "환급", "환불", "수수료환급", "우대환급", "KB환급", "삼성환급", "캐쉬백", "캐시백", "현금IC결제캐쉬백", "하나카드캐쉬백" 등 → 보험금·환급금
-- "정부지원", "지원금", "보조금", "배달택배비지원" → 정부지원금
-- "예금이자", "적금이자" → 이자수익
+2. 환급/지원금(입금):
+   - 환급·환불·캐쉬백·캐시백 → 보험금·환급금
+   - 정부지원·지원금·보조금 → 정부지원금
+   - 예금이자·적금이자 → 이자수익
+   - 대출실행·한도대출 → 차입금
 
-★ 보험사 패턴:
-- 한화생명·삼성생명·교보생명·DB손해보험·DB손 + 출금 → 보험료
-- 동일 보험사 + 입금 → 보험금·환급금
+3. 지출 - 인건비:
+   - 급여·월급 → 인건비(정규)
+   - 알바비·아르바이트·강봉기 → 인건비(알바)
 
-★ 대출/금융:
-- "대출실행", "한도대출" 입금 → 차입금
-- "원금상환", "대출이자" 출금 → 대출원금상환 / 이자비용
-- 삼성카드·하나카드·신한카드대금·카드대금 출금 → 신용카드대금 (※삼성/하나 단독은 카드매출 아님)
+4. 지출 - 재료비:
+   - 참진푸드·스마일푸드·대경축산·창성수산·XX푸드·XX식품 → 원재료(식자재)
+   - 장만길·글로벌유통·전현숙·벼룩유통 → 부자재(식용류)
+   - 광성주류·XX주류 → 부자재(주류)
+   - 이디피·김현규이디피 → 부자재(음료)
+   - 창희민속제과 → 부자재(기타)
 
-★ 세금·공과금 (출금):
-- 부가가치세·부가세·세외수입·세외수납·세외수입(ARS)·국세·종합소득세 → 세금·공과금
-- 국민연금·건강보험·고용보험·산재보험·경찰청과태료·지방세 → 세금·공과금
+5. 지출 - 고정비:
+   - 임대료·월세·관리비 → 임대료·관리비
+   - 도시가스·가스비·가스요금 → 도시가스비
+   - 전기요금·한국전력·KEPCO → 전기요금
+   - KT·SKT·LGU+·통신비 → 통신·IT비
+   - 케이투정보통신·KPN·코페이·KICC → 포스·시스템비
+   - 한화생명·삼성생명·교보생명·DB손해보험·현대해상 → 보험료
+   - 쿠쿠렌탈 → 렌탈비
 
-★ 재료·식자재 납품업체 (출금):
-- 강봉기(토담 옛날통닭)·참진푸드·스마일푸드·대경축산·창성수산 → 원재료(식자재) (주요 납품업체)
-- "XX푸드", "XX식품" 형태 → 원재료(식자재)
-- 장만길·글로벌유통·전현숙·벼룩유통 → 부자재(식용류) (식용유 납품)
-- 창희민속제과 → 부자재(기타)
-- 광성주류·"XX주류" → 부자재(주류)
-- 이디피·김현규이디피 → 부자재(음료)
+6. 지출 - 변동비:
+   - 배달수수료·메쉬·바로고·배민비즈머니 → 배달수수료
+   - 부가가치세·국세·지방세·건강보험·국민연금 → 세금·공과금
+   - GS25·지에스25·노브랜드·진로마트·홈플러스 → 마트·편의점구입
+   - 광명종합주방·세스코 → 수선유지비
+   - 한국외식업중앙회 → 기타사업비
 
-★ 고정비·운영비 (출금):
-- 케이투정보통신·케이투정보·KPN·코페이·KICC → 포스·시스템비 (POS 시스템)
-- 쿠쿠렌탈 → 렌탈비
-- 경동석유·목감행복주유·금강석유·"XX석유" 주유소 → 유류비·교통비
-- 광명종합주방·세스코 → 수선유지비
-- 한국외식업중앙회 → 기타사업비 (조합비)
+7. 사업외 지출:
+   - 삼성카드·하나카드·신한카드대금·KB카드대금·카드대금 출금 → 신용카드대금
+   - 원금상환·대출이자 → 대출원금상환/이자비용
+   - 병원·치과·의원·한의원·약국 → 병원·약국비
+   - 주유·하이패스·고속도로·경동석유·행복주유 → 유류비·교통비
+   - 메가엠지씨커피·소플러스·쿠팡와우 → 개인식비
 
-★ 마트·편의점 (출금):
-- 지에스25·GS25·노브랜드·진로마트·가나안덕·지에스더프레시 → 마트·편의점구입
-
-★ 개인 지출 (출금):
-- 병원·치과·의원·한의원·약국·정형외과·내과 → 병원·약국비
-- 주유·하이패스·고속도로·석유 → 유류비·교통비
-- 도시가스·가스비·가스요금·"XX월 가스" → 도시가스비
-- 메가엠지씨커피·소플러스 → 개인식비 (사업장 주변 개인 카페·음식점)
-- 쿠팡와우월회비 → 개인식비
-
-★ 판단 불가 폴백:
-- 입금이고 위 패턴 해당 없음 → 기타매출
-- 출금이고 위 패턴 해당 없음 → 기타사업비
-
-[거래 내역] (ID | 적요 | 출금 | 입금)
-${batch.map(t => `${t.id} | ${t.description} | 출금:${t.debit > 0 ? t.debit.toLocaleString() : '-'} | 입금:${t.credit > 0 ? t.credit.toLocaleString() : '-'}`).join('\n')}
+[거래 내역] (ID | 적요 | 방향 | 금액)
+${batch.map(t => `${t.id} | ${t.description} | ${t.credit > 0 ? '입금' : '출금'} | ${t.credit > 0 ? t.credit.toLocaleString() : t.debit.toLocaleString()}`).join('
+')}
 
 JSON 배열로만 응답: [{"id":"거래ID","category":"카테고리명"}]
-    `;
+`;
 
+  const processBatch = async (batch: Transaction[], attempt = 0): Promise<void> => {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-04-17",
-        contents: prompt,
+        model: "gemini-2.5-flash",
+        contents: makeBatchPrompt(batch),
         config: {
+          thinkingConfig: { thinkingBudget: 0 },
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.ARRAY,
@@ -156,13 +147,28 @@ JSON 배열로만 응답: [{"id":"거래ID","category":"카테고리명"}]
           }
         }
       });
-
       const aiResults = JSON.parse(response.text);
-      aiResults.forEach((res: any) => {
-        results[res.id] = res.category;
-      });
+      aiResults.forEach((res: any) => { results[res.id] = res.category; });
     } catch (err) {
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, Math.pow(2, attempt + 1) * 3000));
+        return processBatch(batch, attempt + 1);
+      }
       console.error('AI Categorization Error:', err);
+    }
+  };
+
+  // 배치 분할 후 CONCURRENT개씩 병렬 처리
+  const batches: Transaction[][] = [];
+  for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
+    batches.push(transactions.slice(i, i + BATCH_SIZE));
+  }
+
+  for (let i = 0; i < batches.length; i += CONCURRENT) {
+    const group = batches.slice(i, i + CONCURRENT);
+    await Promise.allSettled(group.map(b => processBatch(b)));
+    if (i + CONCURRENT < batches.length) {
+      await new Promise(r => setTimeout(r, 1000));
     }
   }
 
@@ -194,9 +200,10 @@ export const generateInitialCategorizationRules = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-04-17",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
+        thinkingConfig: { thinkingBudget: 0 },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -293,7 +300,7 @@ export const generateInitialCategories = async (businessInfo: BusinessInfo): Pro
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-04-17",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -356,7 +363,7 @@ export const generateFinancialReport = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-04-17",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -416,7 +423,7 @@ export const generateDeepDiveReport = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-04-17",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -497,7 +504,7 @@ export const generateLocationAnalysisReport = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-04-17",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
