@@ -120,8 +120,7 @@ export const categorizeTransactions = async (
    - 메가엠지씨커피·소플러스·쿠팡와우 → 개인식비
 
 [거래 내역] (ID | 적요 | 방향 | 금액)
-${batch.map(t => `${t.id} | ${t.description} | ${t.credit > 0 ? '입금' : '출금'} | ${t.credit > 0 ? t.credit.toLocaleString() : t.debit.toLocaleString()}`).join('
-')}
+${batch.map(t => `${t.id} | ${t.description} | ${t.credit > 0 ? '입금' : '출금'} | ${t.credit > 0 ? t.credit.toLocaleString() : t.debit.toLocaleString()}`).join('\n')}
 
 JSON 배열로만 응답: [{"id":"거래ID","category":"카테고리명"}]
 `;
